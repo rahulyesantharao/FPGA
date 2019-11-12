@@ -106,7 +106,7 @@ module recorder(
     
     //generate a 750 Hz tone
     sine_generator  out_tone (   .clk_in(clk_in), .rst_in(rst_in), 
-                                 .step_in(ready_in), .freq(freq), .amp_out(tone));
+                                 .step_in(ready_in), .freq(freq), .sine(sw[12]), .amp_out(tone));
                       
     //logic [7:0] data_to_bram;
     //logic [7:0] data_from_bram;
@@ -232,6 +232,7 @@ endmodule
 module sine_generator ( input clk_in, input rst_in, //clock and reset
                         input step_in, //trigger a phase step (rate at which you run sine generator)
                         input [31:0] freq, //desired frequency in Hz
+                        input logic sine,
                         output logic [31:0] phase_stepping,
                         output logic [7:0] amp_out); //output phase   
                         
@@ -247,9 +248,15 @@ module sine_generator ( input clk_in, input rst_in, //clock and reset
     
     logic [7:0] divider;
     logic [31:0] phase;
+    logic [7:0] amp_sine;
+    logic [7:0] amp_saw;
     logic [7:0] amp;
+    
+    assign amp = sine ? amp_sine : amp_saw;
+    
     assign amp_out = {~amp[7],amp[6:0]};
-    sine_lut lut_1(.clk_in(clk_in), .phase_in(phase[31:26]), .amp_out(amp));
+    sine_lut lut_1(.clk_in(clk_in), .phase_in(phase[31:26]), .amp_out(amp_sine));
+    sawtooth_lut lut_2(.clk_in(clk_in), .phase_in(phase[31:26]), .amp_out(amp_saw));
     
     always_ff @(posedge clk_in)begin
         if (rst_in)begin
@@ -425,6 +432,78 @@ module sine_lut(input[5:0] phase_in, input clk_in, output logic[7:0] amp_out);
       6'd61: amp_out<=8'd90;
       6'd62: amp_out<=8'd103;
       6'd63: amp_out<=8'd115;
+    endcase
+  end
+endmodule
+
+//6bit sine lookup, 8bit depth
+module sawtooth_lut(input[5:0] phase_in, input clk_in, output logic[7:0] amp_out);
+  always_ff @(posedge clk_in)begin
+    case(phase_in)
+      6'd0: amp_out<=8'd0;
+      6'd1: amp_out<=8'd4;
+      6'd2: amp_out<=8'd8;
+      6'd3: amp_out<=8'd12;
+      6'd4: amp_out<=8'd16;
+      6'd5: amp_out<=8'd20;
+      6'd6: amp_out<=8'd24;
+      6'd7: amp_out<=8'd28;
+      6'd8: amp_out<=8'd32;
+      6'd9: amp_out<=8'd36;
+      6'd10: amp_out<=8'd40;
+      6'd11: amp_out<=8'd44;
+      6'd12: amp_out<=8'd48;
+      6'd13: amp_out<=8'd52;
+      6'd14: amp_out<=8'd56;
+      6'd15: amp_out<=8'd60;
+      6'd16: amp_out<=8'd64;
+      6'd17: amp_out<=8'd68;
+      6'd18: amp_out<=8'd72;
+      6'd19: amp_out<=8'd76;
+      6'd20: amp_out<=8'd80;
+      6'd21: amp_out<=8'd84;
+      6'd22: amp_out<=8'd88;
+      6'd23: amp_out<=8'd92;
+      6'd24: amp_out<=8'd96;
+      6'd25: amp_out<=8'd100;
+      6'd26: amp_out<=8'd104;
+      6'd27: amp_out<=8'd108;
+      6'd28: amp_out<=8'd112;
+      6'd29: amp_out<=8'd116;
+      6'd30: amp_out<=8'd120;
+      6'd31: amp_out<=8'd124;
+      6'd32: amp_out<=8'd128;
+      6'd33: amp_out<=8'd132;
+      6'd34: amp_out<=8'd136;
+      6'd35: amp_out<=8'd140;
+      6'd36: amp_out<=8'd144;
+      6'd37: amp_out<=8'd148;
+      6'd38: amp_out<=8'd152;
+      6'd39: amp_out<=8'd156;
+      6'd40: amp_out<=8'd160;
+      6'd41: amp_out<=8'd164;
+      6'd42: amp_out<=8'd168;
+      6'd43: amp_out<=8'd172;
+      6'd44: amp_out<=8'd176;
+      6'd45: amp_out<=8'd180;
+      6'd46: amp_out<=8'd184;
+      6'd47: amp_out<=8'd188;
+      6'd48: amp_out<=8'd192;
+      6'd49: amp_out<=8'd196;
+      6'd50: amp_out<=8'd200;
+      6'd51: amp_out<=8'd204;
+      6'd52: amp_out<=8'd208;
+      6'd53: amp_out<=8'd212;
+      6'd54: amp_out<=8'd216;
+      6'd55: amp_out<=8'd220;
+      6'd56: amp_out<=8'd224;
+      6'd57: amp_out<=8'd228;
+      6'd58: amp_out<=8'd232;
+      6'd59: amp_out<=8'd236;
+      6'd60: amp_out<=8'd240;
+      6'd61: amp_out<=8'd244;
+      6'd62: amp_out<=8'd248;
+      6'd63: amp_out<=8'd252;
     endcase
   end
 endmodule
