@@ -102,7 +102,7 @@ module recorder(
     logic [7:0] tone;
     logic [31:0] freq;
     
-    freq_lut find_freq (.note_index(sw), .clk_in(clk_in), .freq(freq));
+    freq_lut find_freq (.note_index(sw[6:0]), .clk_in(clk_in), .freq(freq));
     
     //generate a 750 Hz tone
     sine_generator  out_tone (   .clk_in(clk_in), .rst_in(rst_in), 
@@ -208,7 +208,7 @@ endmodule
 //Volume Control
 module volume_control (input [2:0] vol_in, input signed [7:0] signal_in, output logic signed[7:0] signal_out);
     logic [2:0] shift;
-    assign shift = 3'd6;
+    assign shift = 3'd7 - vol_in;
     assign signal_out = signal_in>>>shift;
 endmodule
 
