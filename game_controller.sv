@@ -86,7 +86,7 @@ always_comb begin
     if(game_on) begin
         case(state)
             STATE_IDLE: begin
-                next_state = STATE_SONG_SELECT; // skip over mode select
+                next_state = (btnc) ? STATE_IDLE : STATE_SONG_SELECT; // skip over mode select
                 // don't really matter
                 next_score = 10'd0; // just zero these out until they are needed
                 next_score_counter = 24'd0;
@@ -131,8 +131,8 @@ always_comb begin
                 next_song_choice = song_choice;
                 next_song_start = 1'b0; // don't restart the song once we have entered game mode
             end
-            STATE_FINISH: begin // for now, absorbing state that displays score
-                next_state = STATE_FINISH;
+            STATE_FINISH: begin // btnc starts over
+                next_state = (btnc) ? STATE_IDLE : STATE_FINISH;
                 next_score = score;
                 next_score_counter = 24'd0;
                 next_mode_choice = mode_choice;

@@ -73,7 +73,7 @@ end
 logic [2:0] game_vga_mode;
 logic [1:0] game_menu_pos;
 logic [6:0] game_current_note;
-logic [9:0] game_current_score;
+logic [11:0] game_current_score;
 
 // debug
 logic [3:0] game_state;
@@ -107,7 +107,7 @@ assign seg_data[31:28] = game_state;
 assign seg_data[27:24] = {2'b0, mode_choice};
 assign seg_data[23:20] = {2'b0, song_choice};
 assign seg_data[19:12] = 8'b0;
-assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : {2'b0, game_current_score};
+assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
 assign led = (game_vga_mode == VGA_GAME_PLAY) ? {8'b0, game_current_note} : 15'b0;
 
