@@ -70,15 +70,54 @@ always_ff @(posedge clk_100mhz)begin
     end
 end
 
+////// TOP LEVEL FSM ///////////////////////////////////////
+// top level menu
+localparam TYPE_PLAY = 2'd0;
+localparam TYPE_LEARN = 2'd1;
+// mode menu
+logic [1:0] current_type_choice;
+menu #(.BOTTOM_CHOICE(TYPE_PLAY), .TOP_CHOICE(TYPE_LEARN)) 
+    mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu), .btn_down(rising_btnd), .choice(current_type_choice));
+
+// state
+localparam STATE_MENU = 1'd0;
+localparam STATE_TYPE = 1'd1; // absorbing, for now
+logic [1:0] current_type;
+logic state;
+always_ff @(posedge clk_100mhz) begin
+    if(reset) begin
+        state <= STATE_MENU;
+        current_type <= TYPE_PLAY;
+    end else begin
+        case(state)
+            STATE_MENU: begin
+               state <= (db_btnc) ? STATE_TYPE : STATE_MENU;
+               current_type <= current_type_choice; // just keep tracking 
+            end
+            STATE_TYPE: begin
+                // absorbing
+                state <= state;
+                current_type <= current_type;
+            end
+        endcase
+    end
+end
+    
+////////////////////////////////////////////////////
+
+// game controller
 logic [2:0] game_vga_mode;
 logic [1:0] game_menu_pos;
 logic [34:0] game_current_notes;
 logic [11:0] game_current_score;
+logic is_game_on;
+assign is_game_on = (state == STATE_TYPE) ? 1'b1 : 1'b0;
 
 // debug
 logic [3:0] game_state;
 logic [1:0] mode_choice;
 logic [1:0] song_choice;
+
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
     .VGA_MODE_SELECT(VGA_MODE_SELECT),
@@ -88,12 +127,13 @@ game_controller #(
 my_game (
     .clk_in(clk_100mhz),
     .rst_in(reset),
-    .game_on(1'b1),
+    .game_on(is_game_on),
     .btnu(rising_btnu),
     .btnd(rising_btnd),
     .btnc(db_btnc),
     .keyboard_note(sync_sw[6:0]),
     .mic_note(7'b0),
+    .game_type_in(current_type),
     .vga_mode(game_vga_mode),
     .menu_select(game_menu_pos),
     .current_notes(game_current_notes),
@@ -104,10 +144,14 @@ my_game (
 );
 // segment display
 assign seg_data[31:28] = game_state;
-assign seg_data[27:24] = {2'b0, mode_choice};
-assign seg_data[23:20] = {2'b0, song_choice};
-assign seg_data[19:12] = 8'b0;
-assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
+assign seg_data[27:24] = {2'b0, current_type};
+//assign seg_data[27:24] = {2'b0, mode_choice};
+//assign seg_data[27:24] = {2'b0, song_choice};
+assign seg_data[23:16] = {1'b0, game_current_notes[34:28]};
+assign seg_data[15:8] = {1'b0, game_current_notes[27:21]};
+assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
+//assign seg_data[15:12] = 4'b0;
+//assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
 assign led = (game_vga_mode == VGA_GAME_PLAY) ? {8'b0, game_current_notes[34:28]} : 15'b0;
 
