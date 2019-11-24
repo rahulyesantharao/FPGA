@@ -15,6 +15,12 @@ module top_level(
   output logic aud_sd
 );
 
+// setup clocks
+wire clk_104mhz, clk_65mhz;
+clk_wiz_0 clockgen(
+    .clk_in1(clk_100mhz),
+    .clk_out1(clk_104mhz));
+
 // debounce reset
 logic reset;
 debounce btnr_debounce(.clk_in(clk_100mhz), .noisy_in(btnr), .clean_out(reset));
@@ -142,14 +148,28 @@ my_game (
     .mode_choice_out(mode_choice),
     .song_choice_out(song_choice)
 );
+
+// FFT Analyzer
+logic fft_hi, fft_lo;
+fft_analyzer fft_in(
+    .clk_104mhz(clk_104mhz),
+    .vauxp3(vauxp3),
+    .vauxn3(vauxn3),
+    .hi(fft_hi),
+    .lo(fft_lo)
+);
+
+// DEBUGGING OUTPUT
 // segment display
 assign seg_data[31:28] = game_state;
 assign seg_data[27:24] = {2'b0, current_type};
 //assign seg_data[27:24] = {2'b0, mode_choice};
-//assign seg_data[27:24] = {2'b0, song_choice};
+assign seg_data[27:24] = {2'b0, song_choice};
 assign seg_data[23:16] = {1'b0, game_current_notes[34:28]};
 assign seg_data[15:8] = {1'b0, game_current_notes[27:21]};
-assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
+//assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
+assign seg_data[7:4] = {3'b0, fft_hi};
+assign seg_data[3:0] = {3'b0, fft_lo};
 //assign seg_data[15:12] = 4'b0;
 //assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
