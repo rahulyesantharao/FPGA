@@ -158,18 +158,31 @@ fft_analyzer fft_in(
     .hi(fft_hi),
     .lo(fft_lo)
 );
+logic fft_sync_hi, fft_sync_lo;
+synchronize sync_fft_hi(
+    .clk_in(clk_100mhz),
+    .unsync_in(fft_hi),
+    .sync_out(fft_sync_hi)
+);
+synchronize sync_fft_lo(
+    .clk_in(clk_100mhz),
+    .unsync_in(fft_lo),
+    .sync_out(fft_sync_lo)
+);
+
 
 // DEBUGGING OUTPUT
 // segment display
 assign seg_data[31:28] = game_state;
-assign seg_data[27:24] = {2'b0, current_type};
+assign seg_data[27:24] = {current_type, song_choice};
+//assign seg_data[27:24] = {2'b0, current_type};
 //assign seg_data[27:24] = {2'b0, mode_choice};
-assign seg_data[27:24] = {2'b0, song_choice};
-assign seg_data[23:16] = {1'b0, game_current_notes[34:28]};
-assign seg_data[15:8] = {1'b0, game_current_notes[27:21]};
+//assign seg_data[27:24] = {2'b0, song_choice};
+assign seg_data[23:16] = 8'd0; // {1'b0, game_current_notes[34:28]};
+assign seg_data[15:8] = 8'd0; // {1'b0, game_current_notes[27:21]};
 //assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
-assign seg_data[7:4] = {3'b0, fft_hi};
-assign seg_data[3:0] = {3'b0, fft_lo};
+assign seg_data[7:4] = {3'b0, fft_sync_hi};
+assign seg_data[3:0] = {3'b0, fft_sync_lo};
 //assign seg_data[15:12] = 4'b0;
 //assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds

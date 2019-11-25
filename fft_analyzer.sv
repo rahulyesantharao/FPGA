@@ -144,40 +144,45 @@ module fft_analyzer(
     localparam HILO_THRESHOLD = 11'h30;
     localparam STATE_TRACKING = 1'b1;
     localparam STATE_WAITING = 1'b0;
-    localparam HILO_CYCLE_COUNT = 6'd5;
+    localparam HILO_CYCLE_COUNT = 7'd120;
     
     logic state = STATE_TRACKING; // 1 = tracking, 0 = waiting for timer
-    logic hi_state = 1'b0;
-    logic [5:0] hilo_cycles=6'd0;
+    
+    localparam LO_NOISE = 2'b01;
+    localparam HI_NOISE = 2'b10;
+    localparam NO_NOISE = 2'b00;
+    logic [1:0] noise_state = NO_NOISE;
+    logic [6:0] hilo_cycles=7'd0;
     
     // state transitions
     logic next_state;
-    logic next_hi_state;
-    logic [5:0] next_hilo_cycles;
+    logic [1:0] next_noise_state;
+    logic [6:0] next_hilo_cycles;
     always_comb begin
         case(state)
         STATE_WAITING: begin
             next_state = timer_done ? STATE_TRACKING : STATE_WAITING;
-            next_hi_state = hi_state; // just hold the values steady
-            next_hilo_cycles = 6'd0;
+            next_noise_state = noise_state; // just hold the values steady
+            next_hilo_cycles = 7'd0;
         end
         STATE_TRACKING: begin
             if(hilo_cycles == HILO_CYCLE_COUNT) begin
                 next_state = STATE_WAITING;
-                next_hi_state = hi_state;
-                next_hilo_cycles = 6'd0;
+                next_noise_state = noise_state;
+                next_hilo_cycles = 7'd0;
             end else begin
                 if(index_calc) begin // only update each time the fft is recalculated
                     next_state = STATE_TRACKING;
-                    next_hi_state = (cur_big_index > HILO_THRESHOLD) ? 1'b1 : 1'b0;
-                    if(hi_state && cur_big_index > HILO_THRESHOLD) begin
-                        next_hilo_cycles = hilo_cycles + 6'd1;
-                    end else if(!hi_state && cur_big_index < HILO_THRESHOLD) begin
-                        next_hilo_cycles = hilo_cycles + 6'd1;
-                    end else next_hilo_cycles = 6'd0;
+                    if(cur_big_index == 11'd0) begin // sentinel value for no noise
+                        next_noise_state = NO_NOISE;
+                    end else begin
+                        if(cur_big_index > HILO_THRESHOLD) next_noise_state = HI_NOISE;
+                        else next_noise_state = LO_NOISE;
+                    end
+                    next_hilo_cycles = (noise_state == next_noise_state) ? hilo_cycles + 7'd1 : 7'd0;
                 end else begin
                     next_state = state;
-                    next_hi_state = hi_state;
+                    next_noise_state = noise_state;
                     next_hilo_cycles = hilo_cycles;
                 end
             end
@@ -187,11 +192,11 @@ module fft_analyzer(
     
     // state updates
     assign timer_start = (hilo_cycles == HILO_CYCLE_COUNT) ? 1'b1 : 1'b0; 
-    assign hi = (state == STATE_WAITING) ? hi_state : 1'b0;
-    assign lo = (state == STATE_WAITING) ? !hi_state : 1'b0; // only output when counting
+    assign hi = (state == STATE_WAITING) ? noise_state[1] : 1'b0;
+    assign lo = (state == STATE_WAITING) ? noise_state[0] : 1'b0; // only output when counting
     always_ff @(posedge clk_104mhz) begin
         state <= next_state;
-        hi_state <= next_hi_state;
+        noise_state <= next_noise_state;
         hilo_cycles <= next_hilo_cycles;
     end
 endmodule
