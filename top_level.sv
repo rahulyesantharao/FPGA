@@ -124,6 +124,10 @@ logic [3:0] game_state;
 logic [1:0] mode_choice;
 logic [1:0] song_choice;
 
+// forward declaration of fft stuff
+logic rising_lo;
+logic rising_hi;
+
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
     .VGA_MODE_SELECT(VGA_MODE_SELECT),
@@ -134,8 +138,8 @@ my_game (
     .clk_in(clk_100mhz),
     .rst_in(reset),
     .game_on(is_game_on),
-    .btnu(rising_btnu),
-    .btnd(rising_btnd),
+    .btnu(rising_hi),
+    .btnd(rising_lo),
     .btnc(db_btnc),
     .keyboard_note(sync_sw[6:0]),
     .mic_note(7'b0),
@@ -158,6 +162,8 @@ fft_analyzer fft_in(
     .hi(fft_hi),
     .lo(fft_lo)
 );
+
+// synchronize fft lo/hi back to main clock
 logic fft_sync_hi, fft_sync_lo;
 synchronize sync_fft_hi(
     .clk_in(clk_100mhz),
@@ -170,6 +176,22 @@ synchronize sync_fft_lo(
     .sync_out(fft_sync_lo)
 );
 
+// edge detectors of hi/lo buttons
+logic old_sync_lo;
+logic old_sync_hi;
+
+assign rising_lo = fft_sync_lo & !old_sync_lo;
+assign rising_hi = fft_sync_hi & !old_sync_hi;
+
+always_ff @(posedge clk_100mhz)begin
+    if (reset) begin
+        old_sync_lo <= 1'b0;
+        old_sync_hi  <= 1'b0;
+    end else begin
+        old_sync_lo <= fft_sync_lo;
+        old_sync_hi <= fft_sync_hi;
+    end
+end
 
 // DEBUGGING OUTPUT
 // segment display

@@ -144,7 +144,7 @@ module fft_analyzer(
     localparam HILO_THRESHOLD = 11'h30;
     localparam STATE_TRACKING = 1'b1;
     localparam STATE_WAITING = 1'b0;
-    localparam HILO_CYCLE_COUNT = 7'd120;
+    localparam HILO_CYCLE_COUNT = 7'd45;
     
     logic state = STATE_TRACKING; // 1 = tracking, 0 = waiting for timer
     
