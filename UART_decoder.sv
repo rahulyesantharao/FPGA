@@ -102,3 +102,49 @@ module UART_decoder(
     end
     
 endmodule
+
+module MIDI_decoder(
+    input [7:0] byte_in,
+    input valid_byte,
+    input clk_100mhz,
+    input reset,
+    output logic [6:0] note_out,
+    output logic valid
+    );
+    
+    parameter NOTE_ON = 7'b0100000;
+    parameter NOTE_OFF = 7'b0000000;
+    
+    logic [6:0] last_note;
+    logic status;
+    assign status = (byte_in == NOTE_ON) || (byte_in == NOTE_OFF);
+    
+    always_ff @(posedge clk_100mhz) begin
+    
+        if (reset) begin
+        
+           last_note <= 7'h7F;
+           note_out <= 7'h7F;
+           valid <= 0; 
+            
+        end else begin
+        
+            if (valid_byte) begin
+            
+                last_note <= status ? last_note : byte_in[6:0];
+                note_out <= (byte_in == NOTE_OFF) ? 7'h7F : last_note;
+                valid <= status;
+            
+            end else begin
+            
+                last_note <= last_note;
+                note_out <= note_out;
+                valid <= 0;
+            
+            end
+        
+        end
+    
+    end
+    
+endmodule
