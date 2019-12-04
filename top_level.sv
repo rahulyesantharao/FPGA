@@ -287,7 +287,9 @@ assign seg_data[3:0] = {3'b0, fft_sync_lo};
 //assign seg_data[15:12] = 4'b0;
 //assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
-assign led = (game_vga_mode == VGA_GAME_PLAY) ? {8'b0, game_current_notes[34:28]} : 15'b0;
+
+localparam GAME_MODE = 3'b110;
+assign led = (game_vga_mode == GAME_MODE) ? {8'b0, game_current_notes[34:28]} : 15'b0;
 
 endmodule
 
