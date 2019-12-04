@@ -68,17 +68,22 @@ logic old_db_btnd;
 logic rising_btnd;
 logic old_db_btnu;
 logic rising_btnu;
+logic old_db_btnc;
+logic rising_btnc;
 
 assign rising_btnd = db_btnd & !old_db_btnd;
 assign rising_btnu = db_btnu & !old_db_btnu;
+assign rising_btnc = db_btnc & !old_db_btnc;
 
 always_ff @(posedge clk_100mhz)begin
     if (reset) begin
         old_db_btnd <= 1'b0;
         old_db_btnu <= 1'b0;
+        old_db_btnc <= 1'b0;
     end else begin
         old_db_btnd <= db_btnd;
         old_db_btnu <= db_btnu;
+        old_db_btnc <= db_btnc;
     end
 end
 
@@ -87,7 +92,7 @@ end
 logic rising_lo;
 logic rising_hi;
 // top level menu
-// JACOB - use correct order
+// jacobp - use correct order
 localparam TYPE_KEYBOARD = 2'd0;
 localparam TYPE_4 = 2'd1;
 localparam TYPE_PLAY = 2'd2;
@@ -109,7 +114,8 @@ always_ff @(posedge clk_100mhz) begin
     end else begin
         case(state)
             STATE_MENU: begin
-               state <= (db_btnc) ? STATE_TYPE : STATE_MENU;
+              // jacobp - if btnc seems broken, change this back to `db_btnc`
+               state <= (rising_btnc) ? STATE_TYPE : STATE_MENU;
                current_type <= current_type_choice; // just keep tracking 
             end
             STATE_TYPE: begin
@@ -150,7 +156,8 @@ my_game (
     .game_on(is_game_on),
     .btnu(rising_hi | rising_btnu),
     .btnd(rising_lo | rising_btnd),
-    .btnc(db_btnc),
+    // jacobp - if btnc seems broken, change this back to `db_btnc`
+    .btnc(rising_btnc),
     .keyboard_note(sync_sw[6:0]),
     .mic_note(7'b0),
     .game_type_in(current_type),
@@ -248,7 +255,7 @@ xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
   
 localparam BASIC_SONG_MENU = 3'b011;
 wire phsync,pvsync,pblank;
-// JACOB - try making game_vga_mode, game_menu_pos, current_type_choice,
+// jacobp - try making game_vga_mode, game_menu_pos, current_type_choice,
 // game_current_notes into the sync65 versions
 pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(game_vga_mode), .selection((game_vga_mode == BASIC_SONG_MENU) ? game_menu_pos : current_type_choice),
             .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(game_current_notes[34:28]),
