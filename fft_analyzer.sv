@@ -141,7 +141,7 @@ module fft_analyzer(
     );
     
     // fft state
-    localparam HILO_THRESHOLD = 11'h30;
+    localparam HILO_THRESHOLD = 11'h45; // used to be 30
     localparam STATE_TRACKING = 1'b1;
     localparam STATE_WAITING = 1'b0;
     localparam HILO_CYCLE_COUNT = 7'd45;

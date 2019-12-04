@@ -21,6 +21,7 @@ module game_controller
     output logic [1:0] menu_select,
     output logic [34:0] current_notes,
     output logic [11:0] current_score,
+    output logic shifting_out,
     // debug
     output logic [3:0] game_state_out,
     output logic [1:0] mode_choice_out,
@@ -82,7 +83,7 @@ menu #(.NUM_BITS(SONG_BITS), .BOTTOM_CHOICE(SONG_1), .TOP_CHOICE(SONG_4))
 // song select module
 logic song_start;
 logic [34:0] song_notes;
-song_select song_selector(.clk_in(clk_in), .rst_in(rst_in), .start(song_start), .game_type_in(game_type), .song_choice(song_choice), .advance_note(advance_note), .notes(song_notes));
+song_select song_selector(.clk_in(clk_in), .rst_in(rst_in), .start(song_start), .game_type_in(game_type), .song_choice(song_choice), .advance_note(advance_note), .notes(song_notes), .shifting_out(shifting_out));
 
 // STATE TRANSITIONS ------------------------------------------
 logic [3:0] next_state;
@@ -215,10 +216,18 @@ end
 
 
 // OUTPUT & STATE UPDATE -------------------------------------
+localparam MAIN_MENU = 3'b000;
+    localparam KEYBOARD_INSTRUCTIONS = 3'b001;
+    localparam SONG_INSTRUCTIONS = 3'b010;
+    localparam BASIC_SONG_MENU = 3'b011;
+    localparam CUSTOM_SONG_MENU = 3'b100;
+    localparam LEARN_MODE = 3'b101;
+    localparam GAME_MODE = 3'b110;
+
 assign vga_mode = (state == STATE_MODE_SELECT) ? VGA_MODE_SELECT : 
-                    ((state == STATE_SONG_SELECT) ? VGA_SONG_SELECT : 
-                        ((state == STATE_PLAY || state == STATE_LEARN) ? VGA_GAME_PLAY : 
-                            ((state == STATE_FINISH) ? VGA_GAME_FINISH : VGA_IDLE)));
+                    ((state == STATE_SONG_SELECT) ? BASIC_SONG_MENU : 
+                        ((state == STATE_PLAY) ? GAME_MODE : 
+                            ((state == STATE_LEARN) ? LEARN_MODE : MAIN_MENU)));
 assign menu_select = (state == STATE_MODE_SELECT) ? current_mode_choice : current_song_choice;
 assign current_notes = song_notes;
 assign current_score = score;
@@ -262,7 +271,8 @@ module song_select (
     input logic [1:0] game_type_in,
     input logic [1:0] song_choice,
     input logic advance_note,
-    output logic [34:0] notes
+    output logic [34:0] notes,
+    output logic shifting_out
 );
     localparam NOTE_LENGTH = 26'd50_000_000; // switch notes every half second
     localparam INIT_NOTES = 35'd0;
@@ -278,6 +288,7 @@ module song_select (
     logic [9:0] current_addr = INIT_ADDR;
     logic [3:0] start_counter = 4'd10; // 10 = stable value, 11 -> 0 in one cycle, 0*2 -> 4*2+1 read start values
     logic [1:0] game_type;
+    logic shifting;
     
     // BROM -----------------------------------
     logic [7:0] read_note;
@@ -288,14 +299,17 @@ module song_select (
     logic [25:0] next_counter;
     logic [9:0] next_addr;
     logic [3:0] next_start_counter;
+    logic next_shifting;
     always_comb begin
         if(start_counter < 4'd10) begin
           if(start_counter & 4'b1 == 4'b1) begin
             next_notes = {current_notes[27:0], read_note[6:0]}; // shift in new note
             next_addr = current_addr + 10'd1;
+            next_shifting = 1'b1;
           end else begin
             next_notes = current_notes; // wait for the next note to be read
             next_addr = current_addr;
+            next_shifting = 1'b0;
           end
           next_counter = 26'd0;
           next_start_counter = start_counter + 4'd1;
@@ -307,19 +321,23 @@ module song_select (
                         next_notes = current_notes; // stay on same notes
                         next_counter = counter + 26'd1;
                         next_addr = current_addr;
+                        next_shifting = 1'b0;
                     end else begin
                         next_notes = {current_notes[27:0], read_note[6:0]}; // shift in new note
                         next_counter = 26'd0;
                         next_addr = current_addr + 10'd1;
+                        next_shifting = 1'b1;
                     end
                 end
                 TYPE_LEARN: begin
                     if(advance_note) begin
                         next_notes = {current_notes[27:0], read_note[6:0]}; // shift in new note
                         next_addr = current_addr + 10'd1;
+                        next_shifting = 1'b1;
                     end else begin
                         next_notes = current_notes; // stay on same notes
                         next_addr = current_addr;
+                        next_shifting = 1'b0;
                     end
                     next_counter = 26'd0; // don't use counter
                 end
@@ -330,6 +348,7 @@ module song_select (
     
     // OUTPUT & STATE UPDATE ------------------
     assign notes = current_notes;
+    assign shifting_out = shifting;
     always_ff @(posedge clk_in) begin
         if(rst_in) begin
             current_notes <= INIT_NOTES;
@@ -337,18 +356,21 @@ module song_select (
             current_addr <= INIT_ADDR;
             start_counter <= 4'd10;
             game_type <= TYPE_PLAY;
+            shifting <= 1'b0;
         end else if(start) begin
             current_notes <= INIT_NOTES;
             counter <= 26'd0;
             current_addr <= 250 * song_choice;
             start_counter <= 4'd11; // start sentinel value
             game_type <= game_type_in; // latch game type
+            shifting <= 1'b0;
         end else begin
             current_notes <= next_notes;
             counter <= next_counter;
             current_addr <= next_addr;
             start_counter <= next_start_counter;
             game_type <= game_type; // only reset on start
+            shifting <= next_shifting;
         end 
     end
 endmodule

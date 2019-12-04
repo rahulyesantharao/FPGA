@@ -488,7 +488,7 @@ module picture_blob_keyboard
 
    // calculate rom address and read the location
    assign image_addr = (hcount_in-x_in) + (vcount_in-y_in) * WIDTH;
-   keyboard_rom  rom1(.clka(pixel_clk_in), .addra(image_addr), .douta(image_bits));
+   keyboard_rom1  rom1(.clka(pixel_clk_in), .addra(image_addr), .douta(image_bits));
 
    // use color map to create 4 bits R, 4 bits G, 4 bits B
    // since the image is greyscale, just replicate the red pixels

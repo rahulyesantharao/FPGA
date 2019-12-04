@@ -12,14 +12,20 @@ module top_level(
   output logic ca, cb, cc, cd, ce, cf, cg, dp,
   output logic [7:0] an,
   output logic aud_pwm,
-  output logic aud_sd
+  output logic aud_sd,
+  output[3:0] vga_r,
+output[3:0] vga_b,
+output[3:0] vga_g,
+output vga_hs,
+output vga_vs
 );
 
 // setup clocks
 wire clk_104mhz, clk_65mhz;
 clk_wiz_0 clockgen(
     .clk_in1(clk_100mhz),
-    .clk_out1(clk_104mhz));
+    .clk_out1(clk_104mhz),
+    .clk_out2(clk_65mhz));
 
 // debounce reset
 logic reset;
@@ -77,13 +83,16 @@ always_ff @(posedge clk_100mhz)begin
 end
 
 ////// TOP LEVEL FSM ///////////////////////////////////////
+// forward declaration of fft stuff
+logic rising_lo;
+logic rising_hi;
 // top level menu
 localparam TYPE_PLAY = 2'd0;
 localparam TYPE_LEARN = 2'd1;
 // mode menu
 logic [1:0] current_type_choice;
 menu #(.BOTTOM_CHOICE(TYPE_PLAY), .TOP_CHOICE(TYPE_LEARN)) 
-    mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu), .btn_down(rising_btnd), .choice(current_type_choice));
+    mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice));
 
 // state
 localparam STATE_MENU = 1'd0;
@@ -123,10 +132,8 @@ assign is_game_on = (state == STATE_TYPE) ? 1'b1 : 1'b0;
 logic [3:0] game_state;
 logic [1:0] mode_choice;
 logic [1:0] song_choice;
+logic new_note_shifting_in;
 
-// forward declaration of fft stuff
-logic rising_lo;
-logic rising_hi;
 
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
@@ -138,8 +145,8 @@ my_game (
     .clk_in(clk_100mhz),
     .rst_in(reset),
     .game_on(is_game_on),
-    .btnu(rising_hi),
-    .btnd(rising_lo),
+    .btnu(rising_hi | rising_btnu),
+    .btnd(rising_lo | rising_btnd),
     .btnc(db_btnc),
     .keyboard_note(sync_sw[6:0]),
     .mic_note(7'b0),
@@ -150,7 +157,8 @@ my_game (
     .current_score(game_current_score),
     .game_state_out(game_state),
     .mode_choice_out(mode_choice),
-    .song_choice_out(song_choice)
+    .song_choice_out(song_choice),
+    .shifting_out(new_note_shifting_in)
 );
 
 // FFT Analyzer
@@ -193,6 +201,76 @@ always_ff @(posedge clk_100mhz)begin
     end
 end
 
+// VGA OUTPUT
+logic [2:0] sync65_game_vga_mode;
+logic [1:0] sync65_game_menu_pos;
+logic [34:0] sync65_game_current_notes;
+logic sync65_new_note_shifting_in;
+logic [1:0] sync65_current_type_choice;
+synchronize sync_game_vga_mode(
+    .clk_in(clk_65mhz),
+    .unsync_in(game_vga_mode),
+    .sync_out(sync65_game_vga_mode)
+);
+synchronize sync_game_menu_pos(
+    .clk_in(clk_65mhz),
+    .unsync_in(game_menu_pos),
+    .sync_out(sync65_game_menu_pos)
+);
+synchronize sync_game_current_notes(
+    .clk_in(clk_65mhz),
+    .unsync_in(game_current_notes),
+    .sync_out(sync65_game_current_notes)
+);
+synchronize sync_new_note_shifting_in(
+    .clk_in(clk_65mhz),
+    .unsync_in(new_note_shifting_in),
+    .sync_out(sync65_new_note_shifting_in)
+);
+synchronize sync_current_type_choice(
+    .clk_in(clk_65mhz),
+    .unsync_in(current_type_choice),
+    .sync_out(sync65_current_type_choice)
+);
+    
+
+wire [10:0] hcount;    // pixel on current line
+wire [9:0] vcount;     // line number
+wire hsync, vsync;
+wire [11:0] pixel;
+reg [11:0] rgb;
+wire blank_ignore;
+xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
+  .hsync_out(hsync),.vsync_out(vsync),.blank_out(blank_ignore));
+  
+localparam BASIC_SONG_MENU = 3'b011;
+wire phsync,pvsync,pblank;
+pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(game_vga_mode), .selection((game_vga_mode == BASIC_SONG_MENU) ? game_menu_pos : current_type_choice),
+            .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(game_current_notes[34:28]),
+            .hcount_in(hcount),.vcount_in(vcount),
+            .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank_ignore),
+            .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
+
+reg b,hs,vs;
+
+always_ff @(posedge clk_65mhz) begin
+        hs <= phsync;
+        vs <= pvsync;
+        b <= pblank;
+        rgb <= pixel;
+    end
+
+// the following lines are required for the Nexys4 VGA circuit - do not change
+    assign vga_r = ~b ? rgb[11:8]: 0;
+    assign vga_g = ~b ? rgb[7:4] : 0;
+    assign vga_b = ~b ? rgb[3:0] : 0;
+
+    assign vga_hs = ~hs;
+    assign vga_vs = ~vs;
+//////
+
+
+
 // DEBUGGING OUTPUT
 // segment display
 assign seg_data[31:28] = game_state;
@@ -201,7 +279,8 @@ assign seg_data[27:24] = {current_type, song_choice};
 //assign seg_data[27:24] = {2'b0, mode_choice};
 //assign seg_data[27:24] = {2'b0, song_choice};
 assign seg_data[23:16] = 8'd0; // {1'b0, game_current_notes[34:28]};
-assign seg_data[15:8] = 8'd0; // {1'b0, game_current_notes[27:21]};
+assign seg_data[15:12] = 4'd0;
+assign seg_data[11:8] = {1'b0, game_vga_mode}; // {1'b0, game_current_notes[27:21]};
 //assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
 assign seg_data[7:4] = {3'b0, fft_sync_hi};
 assign seg_data[3:0] = {3'b0, fft_sync_lo};

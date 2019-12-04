@@ -12,7 +12,7 @@ module fft_sampler(
     localparam SWEEPING = 2'd1;
     
     localparam SWEEP_START = 11'd8;
-    localparam SWEEP_END = 11'd400;
+    localparam SWEEP_END = 11'd300; // used to be 400
     localparam LOW_THRESHOLD = 11'd8;
     localparam NUM_BUCKETS = 11'd1024;
     localparam WINDOW_LEN = 2;
