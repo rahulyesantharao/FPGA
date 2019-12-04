@@ -301,7 +301,8 @@ assign seg_data[3:0] = {3'b0, fft_sync_lo};
 // leds
 
 localparam GAME_MODE = 3'b110;
-assign led = (game_vga_mode == GAME_MODE) ? {8'b0, game_current_notes[34:28]} : 15'b0;
+localparam LEARN_MODE = 3'b101;
+assign led = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {8'b0, game_current_notes[34:28]} : 15'b0;
 
 endmodule
 
