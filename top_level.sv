@@ -87,11 +87,14 @@ end
 logic rising_lo;
 logic rising_hi;
 // top level menu
-localparam TYPE_PLAY = 2'd0;
-localparam TYPE_LEARN = 2'd1;
+// JACOB - use correct order
+localparam TYPE_KEYBOARD = 2'd0;
+localparam TYPE_4 = 2'd1;
+localparam TYPE_PLAY = 2'd2;
+localparam TYPE_LEARN = 2'd3;
 // mode menu
 logic [1:0] current_type_choice;
-menu #(.BOTTOM_CHOICE(TYPE_PLAY), .TOP_CHOICE(TYPE_LEARN)) 
+menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD), .TOP_CHOICE(TYPE_LEARN)) 
     mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice));
 
 // state
@@ -207,17 +210,17 @@ logic [1:0] sync65_game_menu_pos;
 logic [34:0] sync65_game_current_notes;
 logic sync65_new_note_shifting_in;
 logic [1:0] sync65_current_type_choice;
-synchronize sync_game_vga_mode(
+synchronize3 sync_game_vga_mode(
     .clk_in(clk_65mhz),
     .unsync_in(game_vga_mode),
     .sync_out(sync65_game_vga_mode)
 );
-synchronize sync_game_menu_pos(
+synchronize2 sync_game_menu_pos(
     .clk_in(clk_65mhz),
     .unsync_in(game_menu_pos),
     .sync_out(sync65_game_menu_pos)
 );
-synchronize sync_game_current_notes(
+synchronize35 sync_game_current_notes(
     .clk_in(clk_65mhz),
     .unsync_in(game_current_notes),
     .sync_out(sync65_game_current_notes)
@@ -227,7 +230,7 @@ synchronize sync_new_note_shifting_in(
     .unsync_in(new_note_shifting_in),
     .sync_out(sync65_new_note_shifting_in)
 );
-synchronize sync_current_type_choice(
+synchronize2 sync_current_type_choice(
     .clk_in(clk_65mhz),
     .unsync_in(current_type_choice),
     .sync_out(sync65_current_type_choice)
@@ -245,6 +248,8 @@ xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
   
 localparam BASIC_SONG_MENU = 3'b011;
 wire phsync,pvsync,pblank;
+// JACOB - try making game_vga_mode, game_menu_pos, current_type_choice,
+// game_current_notes into the sync65 versions
 pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(game_vga_mode), .selection((game_vga_mode == BASIC_SONG_MENU) ? game_menu_pos : current_type_choice),
             .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(game_current_notes[34:28]),
             .hcount_in(hcount),.vcount_in(vcount),
@@ -301,6 +306,39 @@ module synchronize #(parameter NSYNC=3) (
 reg [NSYNC-2:0] sync;
 always_ff @(posedge clk_in) begin
     {sync_out, sync} <= {sync[NSYNC-2:0], unsync_in};
+end
+endmodule
+
+module synchronize3 (
+    input clk_in,
+    input unsync_in[2:0],
+    output reg sync_out[2:0]
+);
+reg [8:0] sync;
+always_ff @(posedge clk_in) begin
+    {sync_out[2:0], sync[8:0]} <= {sync[8:0], unsync_in[2:0]};
+end
+endmodule
+
+module synchronize2 (
+    input clk_in,
+    input unsync_in[1:0],
+    output reg sync_out[1:0]
+);
+reg [5:0] sync;
+always_ff @(posedge clk_in) begin
+    {sync_out[1:0], sync[5:0]} <= {sync[5:0], unsync_in[1:0]};
+end
+endmodule
+
+module synchronize35 (
+    input clk_in,
+    input unsync_in[34:0],
+    output reg sync_out[34:0]
+);
+reg [104:0] sync;
+always_ff @(posedge clk_in) begin
+    {sync_out[104:0], sync[34:0]} <= {sync[104:0], unsync_in[34:0]};
 end
 endmodule
 
