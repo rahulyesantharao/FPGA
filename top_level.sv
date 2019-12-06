@@ -103,6 +103,8 @@ logic [1:0] current_type_choice;
 menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD), .TOP_CHOICE(TYPE_PLAY)) 
     mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice));
 
+logic [3:0] game_state;
+localparam GAME_STATE_FINISH = 4'd5;
 // state
 localparam STATE_MENU = 1'd0;
 localparam STATE_TYPE = 1'd1; // absorbing, for now
@@ -121,7 +123,7 @@ always_ff @(posedge clk_100mhz) begin
             end
             STATE_TYPE: begin
                 // absorbing
-                state <= state;
+                state <= (game_state == GAME_STATE_FINISH) ? STATE_MENU : STATE_TYPE;
                 current_type <= current_type;
             end
         endcase
@@ -135,11 +137,11 @@ logic [2:0] game_vga_mode;
 logic [1:0] game_menu_pos;
 logic [34:0] game_current_notes;
 logic [11:0] game_current_score;
+logic [11:0] game_current_max_score;
 logic is_game_on;
 assign is_game_on = (state == STATE_TYPE && (current_type == TYPE_PLAY || current_type == TYPE_LEARN)) ? 1'b1 : 1'b0;
 
 // debug
-logic [3:0] game_state;
 logic [1:0] mode_choice;
 logic [1:0] song_choice;
 logic new_note_shifting_in;
@@ -169,6 +171,7 @@ my_game (
     .menu_select(game_menu_pos),
     .current_notes(game_current_notes),
     .current_score(game_current_score),
+    .current_max_score(game_current_max_score),
     .game_state_out(game_state),
     .mode_choice_out(mode_choice),
     .song_choice_out(song_choice),
@@ -305,6 +308,10 @@ always_ff @(posedge clk_65mhz) begin
 
 // DEBUGGING OUTPUT
 // segment display
+assign seg_data[31:28] = game_state;
+assign seg_data[27:16] = game_current_score;
+assign seg_data[15:12] = 4'd0;
+assign seg_data[11:0] = game_current_max_score;
 //assign seg_data[31:28] = game_state;
 //assign seg_data[27:24] = {current_type, song_choice};
 //assign seg_data[27:24] = {2'b0, current_type};
@@ -317,7 +324,7 @@ always_ff @(posedge clk_65mhz) begin
 //assign seg_data[7:4] = {3'b0, fft_sync_hi};
 //assign seg_data[3:0] = {3'b0, fft_sync_lo};
 //assign seg_data[15:12] = 4'b0;
-assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
+//assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
 
 localparam GAME_MODE = 3'b110;

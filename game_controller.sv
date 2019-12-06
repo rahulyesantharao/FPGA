@@ -21,6 +21,7 @@ module game_controller
     output logic [1:0] menu_select,
     output logic [34:0] current_notes,
     output logic [11:0] current_score,
+    output logic [11:0] current_max_score,
     output logic shifting_out,
     // debug
     output logic [3:0] game_state_out,
@@ -50,7 +51,7 @@ localparam SONG_1 = 2'd0;
 localparam SONG_2 = 2'd1;
 localparam SONG_3 = 2'd2;
 localparam SONG_4 = 2'd3;
-localparam SONG_FINISH = 7'b111_1111;
+localparam SONG_FINISH = 7'b111_1100;
 
 // Scoring
 localparam SCORE_INTERVAL = 24'd10_000_000;
@@ -59,10 +60,11 @@ localparam NOTE_LENGTH = 26'd25_000_000; // switch notes every quarter second
 // State
 logic [3:0] state = STATE_IDLE;
 logic [11:0] score = 12'd0;
+logic [11:0] max_score = 12'd0;
 logic [23:0] score_counter = 24'd0;
 logic [1:0] game_type;
 logic [MODE_BITS - 1:0] mode_choice = MODE_KEYBOARD;
-logic [SONG_BITS - 1:0] song_choice;
+logic [SONG_BITS - 1:0] song_choice = 2'd0;
 logic advance_note;
 
 // only used in learning mode
@@ -87,7 +89,8 @@ song_select song_selector(.clk_in(clk_in), .rst_in(rst_in), .start(song_start), 
 
 // STATE TRANSITIONS ------------------------------------------
 logic [3:0] next_state;
-logic [9:0] next_score;
+logic [11:0] next_score;
+logic [11:0] next_max_score;
 logic [23:0] next_score_counter;
 logic [MODE_BITS - 1:0] next_mode_choice;
 logic [SONG_BITS - 1:0] next_song_choice;
@@ -109,17 +112,19 @@ always_comb begin
             STATE_IDLE: begin
                 next_state = (btnc) ? STATE_IDLE : STATE_SONG_SELECT; // skip over mode select
                 // don't really matter
-                next_score = 10'd0; // just zero these out until they are needed
+                next_score = score; // just zero these out until they are needed
+                next_max_score = max_score;
                 next_score_counter = 24'd0;
                 next_mode_choice = mode_choice;
-                next_song_choice = song_choice;
+                next_song_choice = 2'd0;
                 next_song_start = 1'b0;
                 next_advance_note = 1'b0;
                 next_old_input_note_counter = 26'd0;
             end
             STATE_MODE_SELECT: begin
                 next_state = (btnc) ? STATE_SONG_SELECT : STATE_MODE_SELECT;
-                next_score = 10'd0; // just zero these out until they are needed
+                next_score = score; // just zero these out until they are needed
+                next_max_score = max_score;
                 next_score_counter = 24'd0;
                 next_mode_choice = current_mode_choice; // keep changing with current choice
                 next_song_choice = song_choice; // don't change
@@ -129,7 +134,8 @@ always_comb begin
             end
             STATE_SONG_SELECT: begin
                 next_state = (btnc) ? ((game_type == TYPE_PLAY) ? STATE_PLAY : STATE_LEARN) : STATE_SONG_SELECT;
-                next_score = 10'd0; // just zero these out until they are needed
+                next_score = (btnc) ? 12'd0 : score; // just zero these out until they are needed
+                next_max_score = (btnc) ? 12'd0 : max_score;
                 next_score_counter = 24'd0;
                 next_mode_choice = mode_choice; // don't change
                 next_song_choice = current_song_choice; // keep changing with current choice
@@ -141,15 +147,18 @@ always_comb begin
                 if(song_notes[34:28] == SONG_FINISH) begin
                     next_state = STATE_FINISH;
                     next_score = score;
+                    next_max_score = max_score;
                     next_score_counter = 24'd0;
                 end else begin
                     next_state = STATE_PLAY;
                     // update the score every SCORE_INTERVAL/10M seconds
                     if(score_counter < SCORE_INTERVAL - 24'd1) begin
                         next_score = score;
+                        next_max_score = max_score;
                         next_score_counter = score_counter + 24'd1;
                     end else begin
                         next_score = score + ((input_note == song_notes[34:28]) ? 12'd1 : 12'd0);
+                        next_max_score = max_score + 12'd1;
                         next_score_counter = 24'd0;
                     end
                 end
@@ -183,14 +192,16 @@ always_comb begin
                 end
                 // maintain these values
                 next_score = score; // no scoring in learning mode
+                next_max_score = max_score;
                 next_score_counter = score_counter;
                 next_mode_choice = mode_choice;
                 next_song_choice = song_choice;
                 next_song_start = 1'b0; // don't restart the song once we have entered game mode
             end
             STATE_FINISH: begin // btnc starts over
-                next_state = (btnc) ? STATE_IDLE : STATE_FINISH;
+                next_state = STATE_IDLE;
                 next_score = score;
+                next_max_score = max_score;
                 next_score_counter = 24'd0;
                 next_mode_choice = mode_choice;
                 next_song_choice = song_choice;
@@ -202,7 +213,8 @@ always_comb begin
     end else begin
         // game is turned off, switch back to initial state
         next_state = STATE_IDLE;
-        next_score = 12'd0;
+        next_score = score;
+        next_max_score = max_score;
         next_score_counter = 24'd0;
         next_mode_choice = MODE_KEYBOARD;
         next_song_choice = 2'd0;
@@ -231,13 +243,15 @@ assign vga_mode = (state == STATE_MODE_SELECT) ? MAIN_MENU :
 assign menu_select = (state == STATE_MODE_SELECT) ? current_mode_choice : current_song_choice;
 assign current_notes = song_notes;
 assign current_score = score;
+assign current_max_score = max_score;
 assign game_state_out = state;
 assign mode_choice_out = mode_choice;
 assign song_choice_out = song_choice;
 always_ff @(posedge clk_in) begin
     if(rst_in) begin
         state <= STATE_IDLE;
-        score <= 10'd0;
+        score <= 12'd0;
+        max_score <= 12'd0;
         score_counter <= 24'd0;
         mode_choice <= MODE_KEYBOARD;
         song_choice <= 2'd0;
@@ -249,6 +263,7 @@ always_ff @(posedge clk_in) begin
     end else begin
         state <= next_state;
         score <= next_score;
+        max_score <= next_max_score;
         score_counter <= next_score_counter;
         mode_choice <= next_mode_choice;
         song_choice <= next_song_choice;
