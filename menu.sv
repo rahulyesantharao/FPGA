@@ -20,8 +20,8 @@ module menu
     logic [NUM_BITS - 1:0] next_selection;
     always_comb begin
         case({btn_up, btn_down})
-            2'b10: next_selection = (current_selection < TOP_CHOICE) ? current_selection + 1 : current_selection;
-            2'b01: next_selection = (current_selection > BOTTOM_CHOICE) ? current_selection - 1 : current_selection;
+            2'b10: next_selection = (current_selection > BOTTOM_CHOICE) ? current_selection - 1 : TOP_CHOICE;
+            2'b01: next_selection = (current_selection < TOP_CHOICE) ? current_selection + 1 : BOTTOM_CHOICE;
             default: next_selection = current_selection; // if they hit both buttons or neither, don't change
         endcase
     end

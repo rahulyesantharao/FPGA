@@ -8,6 +8,7 @@ module top_level(
   input vauxn3,
   input vn_in,
   input vp_in,
+  input [7:0] jb,
   output logic [15:0] led,
   output logic ca, cb, cc, cd, ce, cf, cg, dp,
   output logic [7:0] an,
@@ -95,11 +96,11 @@ logic rising_hi;
 // jacobp - use correct order
 localparam TYPE_KEYBOARD = 2'd0;
 localparam TYPE_4 = 2'd1;
-localparam TYPE_PLAY = 2'd2;
-localparam TYPE_LEARN = 2'd3;
+localparam TYPE_LEARN = 2'd2;
+localparam TYPE_PLAY = 2'd3;
 // mode menu
 logic [1:0] current_type_choice;
-menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD), .TOP_CHOICE(TYPE_LEARN)) 
+menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD), .TOP_CHOICE(TYPE_PLAY)) 
     mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice));
 
 // state
@@ -115,7 +116,7 @@ always_ff @(posedge clk_100mhz) begin
         case(state)
             STATE_MENU: begin
               // jacobp - if btnc seems broken, change this back to `db_btnc`
-               state <= (rising_btnc) ? STATE_TYPE : STATE_MENU;
+               state <= (db_btnc) ? STATE_TYPE : STATE_MENU;
                current_type <= current_type_choice; // just keep tracking 
             end
             STATE_TYPE: begin
@@ -135,7 +136,7 @@ logic [1:0] game_menu_pos;
 logic [34:0] game_current_notes;
 logic [11:0] game_current_score;
 logic is_game_on;
-assign is_game_on = (state == STATE_TYPE) ? 1'b1 : 1'b0;
+assign is_game_on = (state == STATE_TYPE && (current_type == TYPE_PLAY || current_type == TYPE_LEARN)) ? 1'b1 : 1'b0;
 
 // debug
 logic [3:0] game_state;
@@ -143,6 +144,8 @@ logic [1:0] mode_choice;
 logic [1:0] song_choice;
 logic new_note_shifting_in;
 
+logic [6:0] user_note_out;
+UART_decoder my_note(.jb(jb), .clk_100mhz(clk_100mhz), .reset(db_btnl), .led(user_note_out));
 
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
@@ -157,8 +160,9 @@ my_game (
     .btnu(rising_hi | rising_btnu),
     .btnd(rising_lo | rising_btnd),
     // jacobp - if btnc seems broken, change this back to `db_btnc`
-    .btnc(rising_btnc),
-    .keyboard_note(sync_sw[6:0]),
+    .btnc(db_btnc),
+    //.keyboard_note(sync_sw[6:0]),
+    .keyboard_note(user_note_out),
     .mic_note(7'b0),
     .game_type_in(current_type),
     .vga_mode(game_vga_mode),
@@ -211,16 +215,27 @@ always_ff @(posedge clk_100mhz)begin
     end
 end
 
+
+localparam MAIN_MENU = 3'b000;
+localparam KEYBOARD_INSTRUCTIONS = 3'b001;
+localparam SONG_INSTRUCTIONS = 3'b010;
+
+logic [2:0] full_vga_mode;
+assign full_vga_mode = (is_game_on) ? 
+  game_vga_mode : ((state == STATE_MENU) ? 
+    MAIN_MENU : ((current_type == TYPE_KEYBOARD) ? 
+      KEYBOARD_INSTRUCTIONS : SONG_INSTRUCTIONS));
 // VGA OUTPUT
-logic [2:0] sync65_game_vga_mode;
+logic [6:0] sync65_user_note;
+logic [2:0] sync65_full_vga_mode;
 logic [1:0] sync65_game_menu_pos;
 logic [34:0] sync65_game_current_notes;
 logic sync65_new_note_shifting_in;
 logic [1:0] sync65_current_type_choice;
-synchronize3 sync_game_vga_mode(
+synchronize3 sync_full_vga_mode(
     .clk_in(clk_65mhz),
-    .unsync_in(game_vga_mode),
-    .sync_out(sync65_game_vga_mode)
+    .unsync_in(full_vga_mode),
+    .sync_out(sync65_full_vga_mode)
 );
 synchronize2 sync_game_menu_pos(
     .clk_in(clk_65mhz),
@@ -242,6 +257,11 @@ synchronize2 sync_current_type_choice(
     .unsync_in(current_type_choice),
     .sync_out(sync65_current_type_choice)
 );
+synchronize7 sync_user_note(
+    .clk_in(clk_65mhz),
+    .unsync_in(user_note_out),
+    .sync_out(sync65_user_note)
+);
     
 
 wire [10:0] hcount;    // pixel on current line
@@ -257,8 +277,8 @@ localparam BASIC_SONG_MENU = 3'b011;
 wire phsync,pvsync,pblank;
 // jacobp - try making game_vga_mode, game_menu_pos, current_type_choice,
 // game_current_notes into the sync65 versions
-pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(game_vga_mode), .selection((game_vga_mode == BASIC_SONG_MENU) ? game_menu_pos : current_type_choice),
-            .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(game_current_notes[34:28]),
+pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sync65_full_vga_mode), .selection((sync65_full_vga_mode == BASIC_SONG_MENU) ? sync65_game_menu_pos : sync65_current_type_choice),
+            .notes(sync65_game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(sync65_game_current_notes[34:28]), .user_note(sync65_user_note),
             .hcount_in(hcount),.vcount_in(vcount),
             .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank_ignore),
             .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
@@ -285,24 +305,24 @@ always_ff @(posedge clk_65mhz) begin
 
 // DEBUGGING OUTPUT
 // segment display
-assign seg_data[31:28] = game_state;
-assign seg_data[27:24] = {current_type, song_choice};
+//assign seg_data[31:28] = game_state;
+//assign seg_data[27:24] = {current_type, song_choice};
 //assign seg_data[27:24] = {2'b0, current_type};
 //assign seg_data[27:24] = {2'b0, mode_choice};
 //assign seg_data[27:24] = {2'b0, song_choice};
-assign seg_data[23:16] = 8'd0; // {1'b0, game_current_notes[34:28]};
-assign seg_data[15:12] = 4'd0;
-assign seg_data[11:8] = {1'b0, game_vga_mode}; // {1'b0, game_current_notes[27:21]};
+//assign seg_data[23:16] = 8'd0; // {1'b0, game_current_notes[34:28]};
+//assign seg_data[15:12] = 4'd0;
+//assign seg_data[11:8] = {1'b0, game_vga_mode}; // {1'b0, game_current_notes[27:21]};
 //assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
-assign seg_data[7:4] = {3'b0, fft_sync_hi};
-assign seg_data[3:0] = {3'b0, fft_sync_lo};
+//assign seg_data[7:4] = {3'b0, fft_sync_hi};
+//assign seg_data[3:0] = {3'b0, fft_sync_lo};
 //assign seg_data[15:12] = 4'b0;
-//assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
+assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
 // leds
 
 localparam GAME_MODE = 3'b110;
 localparam LEARN_MODE = 3'b101;
-assign led = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {8'b0, game_current_notes[34:28]} : 15'b0;
+assign led = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {1'b0, user_note_out, game_current_notes[34:28]} : 15'b0;
 
 endmodule
 
@@ -319,8 +339,8 @@ endmodule
 
 module synchronize3 (
     input clk_in,
-    input unsync_in[2:0],
-    output reg sync_out[2:0]
+    input [2:0] unsync_in,
+    output reg [2:0] sync_out
 );
 reg [8:0] sync;
 always_ff @(posedge clk_in) begin
@@ -330,8 +350,8 @@ endmodule
 
 module synchronize2 (
     input clk_in,
-    input unsync_in[1:0],
-    output reg sync_out[1:0]
+    input [1:0] unsync_in,
+    output reg [1:0] sync_out
 );
 reg [5:0] sync;
 always_ff @(posedge clk_in) begin
@@ -339,14 +359,25 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
+module synchronize7 (
+    input clk_in,
+    input [6:0] unsync_in,
+    output reg [6:0] sync_out
+);
+reg [20:0] sync;
+always_ff @(posedge clk_in) begin
+    {sync_out[6:0], sync[20:0]} <= {sync[20:0], unsync_in[6:0]};
+end
+endmodule
+
 module synchronize35 (
     input clk_in,
-    input unsync_in[34:0],
-    output reg sync_out[34:0]
+    input [34:0] unsync_in,
+    output reg [34:0] sync_out
 );
 reg [104:0] sync;
 always_ff @(posedge clk_in) begin
-    {sync_out[104:0], sync[34:0]} <= {sync[104:0], unsync_in[34:0]};
+    {sync_out[34:0], sync[104:0]} <= {sync[104:0], unsync_in[34:0]};
 end
 endmodule
 

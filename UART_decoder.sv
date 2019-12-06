@@ -23,12 +23,12 @@
 module UART_decoder(
     input [7:0] jb,
     input clk_100mhz,
+    input reset,
     output logic [6:0] led
     );
         
     logic [7:0] val_out;
     logic valid;
-    logic reset = 0;
     logic [6:0] note;
     logic [87:0] notes_played;
     

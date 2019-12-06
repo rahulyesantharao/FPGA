@@ -56,7 +56,7 @@ module VGA_helper(
 
     wire phsync,pvsync,pblank;
     pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sw[15:13]), .selection(selection),
-                .notes(notes), .new_note(new_note), .learning_note(sw[6:0]),
+                .notes(notes), .new_note(new_note), .learning_note(sw[6:0]), .user_note(sw[13:7]),
                 .hcount_in(hcount),.vcount_in(vcount),
                 .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank),
                 .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
@@ -105,6 +105,7 @@ module pixel_helper(
     input [34:0] notes,
     input new_note,
     input [6:0] learning_note,
+    input [6:0] user_note,
     input [10:0] hcount_in, // horizontal index of current pixel (0..1023)
     input [9:0]  vcount_in, // vertical index of current pixel (0..767)
     input hsync_in,         // XVGA horizontal sync signal (active low)
@@ -182,6 +183,14 @@ module pixel_helper(
         learning_note_blob(.x_in(learning_note_x),.y_in(480),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(learning_note_pixel));
             
+    logic [10:0] user_note_x;
+    keyboard_lut my_user_lut(.clk_65mhz(clk_65mhz), .note_index(user_note), .x_loc(user_note_x));
+    
+    wire [11:0] user_note_pixel;
+    blob #(.WIDTH(10),.HEIGHT(60),.COLOR(12'h0F0))
+        user_note_blob(.x_in(user_note_x),.y_in(580),.hcount_in(hcount_in),.vcount_in(vcount_in),
+            .pixel_out(user_note_pixel));
+            
     wire [11:0] note_1_pixel, note_2_pixel, note_3_pixel, note_4_pixel, note_5_pixel;
             
     logic [10:0] note_1_x, note_2_x, note_3_x, note_4_x, note_5_x;
@@ -221,16 +230,16 @@ module pixel_helper(
         case(screen)
         
             MAIN_MENU:              pixel_out <= main_menu_pixel & selector_pixel;
-            KEYBOARD_INSTRUCTIONS:  pixel_out <= keyboard_inst_pixel;
+            KEYBOARD_INSTRUCTIONS:  pixel_out <= keyboard_pixel & user_note_pixel;
             SONG_INSTRUCTIONS:      pixel_out <= song_inst_pixel;
             BASIC_SONG_MENU:        pixel_out <= song_menu_pixel & selector_pixel;
             CUSTOM_SONG_MENU:       pixel_out <= song_menu_custom_pixel & selector_pixel;
-            LEARN_MODE:             pixel_out <= keyboard_pixel & learning_note_pixel;
-            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel);
+            LEARN_MODE:             pixel_out <= keyboard_pixel & learning_note_pixel & user_note_pixel;
+            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel & user_note_pixel);
         
         endcase
         
-        counter <= (counter == CYCLES_PER_MOVEMENT) ? 18'b0 : counter + 1;
+        counter <= (!(screen == GAME_MODE) || counter == CYCLES_PER_MOVEMENT) ? 18'b0 : counter + 1;
         note_1_y <= (new_note) ? 480 : (counter == CYCLES_PER_MOVEMENT) ? note_1_y + 2 : note_1_y;
         note_2_y <= (new_note) ? 320 : (counter == CYCLES_PER_MOVEMENT) ? note_2_y + 2 : note_2_y;
         note_3_y <= (new_note) ? 160 : (counter == CYCLES_PER_MOVEMENT) ? note_3_y + 2 : note_3_y;

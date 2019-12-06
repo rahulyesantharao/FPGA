@@ -36,8 +36,8 @@ localparam STATE_LEARN = 4'd4;
 localparam STATE_FINISH = 4'd5; // can reset back to IDLE with btnc
 
 // Game types
-localparam TYPE_PLAY = 2'd0;
-localparam TYPE_LEARN = 2'd1;
+localparam TYPE_PLAY = 2'd3;
+localparam TYPE_LEARN = 2'd2;
 
 // Game modes
 localparam MODE_BITS = 2;
@@ -54,7 +54,7 @@ localparam SONG_FINISH = 7'b111_1111;
 
 // Scoring
 localparam SCORE_INTERVAL = 24'd10_000_000;
-localparam NOTE_LENGTH = 26'd50_000_000; // switch notes every half second
+localparam NOTE_LENGTH = 26'd25_000_000; // switch notes every quarter second
 
 // State
 logic [3:0] state = STATE_IDLE;
@@ -224,7 +224,7 @@ localparam MAIN_MENU = 3'b000;
     localparam LEARN_MODE = 3'b101;
     localparam GAME_MODE = 3'b110;
 
-assign vga_mode = (state == STATE_MODE_SELECT) ? VGA_MODE_SELECT : 
+assign vga_mode = (state == STATE_MODE_SELECT) ? MAIN_MENU : 
                     ((state == STATE_SONG_SELECT) ? BASIC_SONG_MENU : 
                         ((state == STATE_PLAY) ? GAME_MODE : 
                             ((state == STATE_LEARN) ? LEARN_MODE : MAIN_MENU)));
@@ -274,13 +274,13 @@ module song_select (
     output logic [34:0] notes,
     output logic shifting_out
 );
-    localparam NOTE_LENGTH = 26'd50_000_000; // switch notes every half second
+    localparam NOTE_LENGTH = 26'd25_000_000; // switch notes every half second
     localparam INIT_NOTES = 35'd0;
     localparam INIT_ADDR = 10'd0;
     
     // Game types
-    localparam TYPE_PLAY = 2'd0;
-    localparam TYPE_LEARN = 2'd1;
+    localparam TYPE_PLAY = 2'd3;
+    localparam TYPE_LEARN = 2'd2;
 
     // STATE ----------------------------------
     logic [34:0] current_notes = INIT_NOTES;
