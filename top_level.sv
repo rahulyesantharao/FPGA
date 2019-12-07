@@ -118,7 +118,7 @@ always_ff @(posedge clk_100mhz) begin
         case(state)
             STATE_MENU: begin
               // jacobp - if btnc seems broken, change this back to `db_btnc`
-               state <= (db_btnc) ? STATE_TYPE : STATE_MENU;
+               state <= (rising_btnc) ? STATE_TYPE : STATE_MENU;
                current_type <= current_type_choice; // just keep tracking 
             end
             STATE_TYPE: begin
@@ -162,7 +162,7 @@ my_game (
     .btnu(rising_hi | rising_btnu),
     .btnd(rising_lo | rising_btnd),
     // jacobp - if btnc seems broken, change this back to `db_btnc`
-    .btnc(db_btnc),
+    .btnc(rising_btnc),
     //.keyboard_note(sync_sw[6:0]),
     .keyboard_note(user_note_out),
     .mic_note(7'b0),
