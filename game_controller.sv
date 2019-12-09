@@ -366,7 +366,7 @@ module song_select (
                     end
                 end
                 TYPE_LEARN: begin
-                    if(advance_note | end_notes) begin
+                    if(advance_note | current_notes[34:28] == END_NOTE) begin
                         next_notes = {current_notes[27:0], read_note[6:0]}; // shift in new note
                         next_end_notes = (read_note[6:0] == END_NOTE) ? 1'b1 : 1'b0;
                         next_addr = current_addr + 10'd1;

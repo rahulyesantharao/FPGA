@@ -21,6 +21,8 @@ output vga_hs,
 output vga_vs
 );
 
+
+
 // setup clocks
 wire clk_104mhz, clk_65mhz;
 clk_wiz_0 clockgen(
@@ -42,6 +44,8 @@ synchronize sw4_sync(.clk_in(clk_100mhz), .unsync_in(sw[4]), .sync_out(sync_sw[4
 synchronize sw5_sync(.clk_in(clk_100mhz), .unsync_in(sw[5]), .sync_out(sync_sw[5]));
 synchronize sw6_sync(.clk_in(clk_100mhz), .unsync_in(sw[6]), .sync_out(sync_sw[6]));
 synchronize sw7_sync(.clk_in(clk_100mhz), .unsync_in(sw[7]), .sync_out(sync_sw[7]));
+synchronize sw8_sync(.clk_in(clk_100mhz), .unsync_in(sw[8]), .sync_out(sync_sw[8]));
+synchronize sw9_sync(.clk_in(clk_100mhz), .unsync_in(sw[9]), .sync_out(sync_sw[9]));
 synchronize sw15_sync(.clk_in(clk_100mhz), .unsync_in(sw[15]), .sync_out(sync_sw[15]));
 // debounce buttons
 logic db_btnc, db_btnu, db_btnd, db_btnl;
@@ -49,6 +53,9 @@ debounce btnc_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnc), .cl
 debounce btnu_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnu), .clean_out(db_btnu));
 debounce btnd_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnd), .clean_out(db_btnd));
 debounce btnl_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnl), .clean_out(db_btnl));
+
+keyboard my_keyboard(.clk_100mhz(clk_100mhz), .sw(sync_sw[9:0]), .vauxp3(vauxp3), .vauxn3(vauxn3), .vn_in(vn_in), .vp_in(vp_in), .reset(reset), .enable(sync_sw[15]), .aud_pwm(aud_pwm), .aud_sd(aud_sd));
+
 
 // 7-segment display
 wire [31:0] seg_data;
@@ -152,8 +159,10 @@ logic [1:0] mode_choice;
 logic [1:0] song_choice;
 logic new_note_shifting_in;
 
+logic [6:0] user_note_out_keyboard;
+UART_decoder my_note(.jb(jb), .clk_100mhz(clk_100mhz), .reset(db_btnl), .led(user_note_out_keyboard));
 logic [6:0] user_note_out;
-UART_decoder my_note(.jb(jb), .clk_100mhz(clk_100mhz), .reset(db_btnl), .led(user_note_out));
+assign user_note_out = sync_sw[15] ? sync_sw[6:0] : user_note_out_keyboard;
 
 logic ram_wea;
 logic [9:0] ram_address;
@@ -357,9 +366,7 @@ assign seg_data[11:0] = disp_score;
 
 localparam GAME_MODE = 3'b110;
 localparam LEARN_MODE = 3'b101;
-assign led[15] = enable;
-assign led[14] = song_created;
-assign led[13:0] = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {user_note_out, game_current_notes[34:28]} : 14'b0;
+assign led[15:0] = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {user_note_out, 2'b0, game_current_notes[34:28]} : 16'b0;
 
 endmodule
 

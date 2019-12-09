@@ -18,84 +18,84 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-module VGA_helper(
-    input clk_100mhz,
-    input[15:0] sw,
-    input btnu,
-    input btnd,
-    input reset,
-    output[3:0] vga_r,
-    output[3:0] vga_b,
-    output[3:0] vga_g,
-    output vga_hs,
-    output vga_vs,
-    output[15:0] led
-    );
+//module VGA_helper(
+//    input clk_100mhz,
+//    input[15:0] sw,
+//    input btnu,
+//    input btnd,
+//    input reset,
+//    output[3:0] vga_r,
+//    output[3:0] vga_b,
+//    output[3:0] vga_g,
+//    output vga_hs,
+//    output vga_vs,
+//    output[15:0] led
+//    );
     
-    // create 65mhz system clock, happens to match 1024 x 768 XVGA timing
-    clk_wiz_lab3 clkdivider(.clk_in1(clk_100mhz), .clk_out1(clk_65mhz));
+//    // create 65mhz system clock, happens to match 1024 x 768 XVGA timing
+//    clk_wiz_lab3 clkdivider(.clk_in1(clk_100mhz), .clk_out1(clk_65mhz));
     
-    wire [10:0] hcount;    // pixel on current line
-    wire [9:0] vcount;     // line number
-    wire hsync, vsync;
-    wire [11:0] pixel;
-    reg [11:0] rgb;    
-    xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
-          .hsync_out(hsync),.vsync_out(vsync),.blank_out(blank));
+//    wire [10:0] hcount;    // pixel on current line
+//    wire [9:0] vcount;     // line number
+//    wire hsync, vsync;
+//    wire [11:0] pixel;
+//    reg [11:0] rgb;    
+//    xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
+//          .hsync_out(hsync),.vsync_out(vsync),.blank_out(blank));
    
-    // UP and DOWN buttons for pong paddle
-    wire up,down;
-    debounce db2(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnu),.clean_out(up));
-    debounce db3(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnd),.clean_out(down));
+//    // UP and DOWN buttons for pong paddle
+//    wire up,down;
+//    debounce db2(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnu),.clean_out(up));
+//    debounce db3(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnd),.clean_out(down));
     
-    logic [2:0] selection = 3'b000;
-    logic [34:0] notes = 35'h7F4895327;
-    logic new_note;
-    logic [6:0] next_note = 7'b0101000;
+//    logic [2:0] selection = 3'b000;
+//    logic [34:0] notes = 35'h7F4895327;
+//    logic new_note;
+//    logic [6:0] next_note = 7'b0101000;
     
-    assign led[2:0] = selection;
+//    assign led[2:0] = selection;
 
-    wire phsync,pvsync,pblank;
-    pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sw[15:13]), .selection(selection),
-                .notes(notes), .new_note(new_note), .learning_note(sw[6:0]), .user_note(sw[13:7]),
-                .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
-                .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank),
-                .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
+//    wire phsync,pvsync,pblank;
+//    pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sw[15:13]), .selection(selection),
+//                .notes(notes), .new_note(new_note), .learning_note(sw[6:0]), .user_note(sw[13:7]),
+//                .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
+//                .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank),
+//                .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
 
-    reg b,hs,vs;
+//    reg b,hs,vs;
     
-    parameter CYCLES_PER_NOTE = 16250000;
-    logic [23:0] counter = 24'b0;
+//    parameter CYCLES_PER_NOTE = 16250000;
+//    logic [23:0] counter = 24'b0;
     
-    logic time_for_new_note;
-    assign time_for_new_note = (counter == CYCLES_PER_NOTE);
+//    logic time_for_new_note;
+//    assign time_for_new_note = (counter == CYCLES_PER_NOTE);
     
-    always_ff @(posedge clk_65mhz) begin
-        // default: pong
-        selection <= up ? down ? selection : selection - 1 : down ? selection + 1 : selection;
+//    always_ff @(posedge clk_65mhz) begin
+//        // default: pong
+//        selection <= up ? down ? selection : selection - 1 : down ? selection + 1 : selection;
         
-        counter <= time_for_new_note ? 24'b0 : counter + 1;
-        new_note <= time_for_new_note;
-        notes <= time_for_new_note ? {notes[27:0], next_note} : notes;
-        next_note <= time_for_new_note ? (next_note == 7'b1010100) ? 7'b0100100 : next_note + 1 : next_note;
+//        counter <= time_for_new_note ? 24'b0 : counter + 1;
+//        new_note <= time_for_new_note;
+//        notes <= time_for_new_note ? {notes[27:0], next_note} : notes;
+//        next_note <= time_for_new_note ? (next_note == 7'b1010100) ? 7'b0100100 : next_note + 1 : next_note;
         
-        hs <= phsync;
-        vs <= pvsync;
-        b <= pblank;
-        rgb <= pixel;
-    end
+//        hs <= phsync;
+//        vs <= pvsync;
+//        b <= pblank;
+//        rgb <= pixel;
+//    end
 
-//    assign rgb = sw[0] ? {12{border}} : pixel ; //{{4{hcount[7]}}, {4{hcount[6]}}, {4{hcount[5]}}};
+////    assign rgb = sw[0] ? {12{border}} : pixel ; //{{4{hcount[7]}}, {4{hcount[6]}}, {4{hcount[5]}}};
 
-    // the following lines are required for the Nexys4 VGA circuit - do not change
-    assign vga_r = ~b ? rgb[11:8]: 0;
-    assign vga_g = ~b ? rgb[7:4] : 0;
-    assign vga_b = ~b ? rgb[3:0] : 0;
+//    // the following lines are required for the Nexys4 VGA circuit - do not change
+//    assign vga_r = ~b ? rgb[11:8]: 0;
+//    assign vga_g = ~b ? rgb[7:4] : 0;
+//    assign vga_b = ~b ? rgb[3:0] : 0;
 
-    assign vga_hs = ~hs;
-    assign vga_vs = ~vs;
+//    assign vga_hs = ~hs;
+//    assign vga_vs = ~vs;
 
-endmodule
+//endmodule
 
 
 
@@ -612,47 +612,35 @@ module picture_blob_song_menu_custom
 endmodule
 
 
-module synchronize #(parameter NSYNC = 3)  // number of sync flops.  must be >= 2
-                   (input clk,in,
-                    output reg out);
-
-  reg [NSYNC-2:0] sync;
-
-  always_ff @ (posedge clk)
-  begin
-    {out,sync} <= {sync[NSYNC-2:0],in};
-  end
-endmodule
-
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Pushbutton Debounce Module (video version - 24 bits)  
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-module debounce (input reset_in, clock_in, noisy_in,
-                 output reg clean_out);
+//module debounce (input reset_in, clock_in, noisy_in,
+//                 output reg clean_out);
 
-   reg [19:0] count;
-   reg new_input;
+//   reg [19:0] count;
+//   reg new_input;
+
+////   always_ff @(posedge clock_in)
+////     if (reset_in) begin new <= noisy_in; clean_out <= noisy_in; count <= 0; end
+////     else if (noisy_in != new) begin new <= noisy_in; count <= 0; end
+////     else if (count == 650000) clean_out <= new;
+////     else count <= count+1;
 
 //   always_ff @(posedge clock_in)
-//     if (reset_in) begin new <= noisy_in; clean_out <= noisy_in; count <= 0; end
-//     else if (noisy_in != new) begin new <= noisy_in; count <= 0; end
-//     else if (count == 650000) clean_out <= new;
+//     if (reset_in) begin 
+//        new_input <= noisy_in; 
+//        clean_out <= noisy_in; 
+//        count <= 0; end
+//     else if (noisy_in != new_input) begin new_input<=noisy_in; count <= 0; end
+//     else if (count == 650000) clean_out <= new_input;
 //     else count <= count+1;
 
-   always_ff @(posedge clock_in)
-     if (reset_in) begin 
-        new_input <= noisy_in; 
-        clean_out <= noisy_in; 
-        count <= 0; end
-     else if (noisy_in != new_input) begin new_input<=noisy_in; count <= 0; end
-     else if (count == 650000) clean_out <= new_input;
-     else count <= count+1;
 
-
-endmodule
+//endmodule
 
 
 //////////////////////////////////////////////////////////////////////////////////
