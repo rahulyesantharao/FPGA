@@ -333,7 +333,8 @@ score_calc my_score_calc(
 
 // DEBUGGING OUTPUT
 // segment display
-assign seg_data[31:12] = 0;
+assign seg_data[31:24] = {1'b0, game_current_notes[34:28]};
+assign seg_data[23:12] = 0;
 assign seg_data[11:0] = disp_score;
 //assign seg_data[31:28] = game_state;
 //assign seg_data[27:16] = game_current_score;

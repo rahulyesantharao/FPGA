@@ -118,7 +118,7 @@ always_comb begin
         next_old_input_note = input_note;
         case(state)
             STATE_IDLE: begin
-                next_state = (btnc) ? STATE_IDLE : STATE_SONG_SELECT; // skip over mode select
+                next_state = STATE_SONG_SELECT; // (btnc) ? STATE_IDLE : STATE_SONG_SELECT; // skip over mode select
                 // don't really matter
                 next_score = score; // just zero these out until they are needed
                 next_max_score = max_score;
@@ -317,7 +317,7 @@ module song_select (
     logic [1:0] game_type;
     logic shifting;
     logic [3:0] shifting_regs = 4'd0;
-    logic end_notes = 1'b0;
+    logic end_notes = 1'b1;
     
     // BROM -----------------------------------
     logic [7:0] read_note;
@@ -366,7 +366,7 @@ module song_select (
                     end
                 end
                 TYPE_LEARN: begin
-                    if(advance_note) begin
+                    if(advance_note | end_notes) begin
                         next_notes = {current_notes[27:0], read_note[6:0]}; // shift in new note
                         next_end_notes = (read_note[6:0] == END_NOTE) ? 1'b1 : 1'b0;
                         next_addr = current_addr + 10'd1;
@@ -397,7 +397,7 @@ module song_select (
             game_type <= TYPE_PLAY;
             shifting <= 1'b0;
             shifting_regs <= 4'd0;
-            end_notes <= 1'b0;
+            end_notes <= 1'b1;
         end else if(start) begin
             current_notes <= INIT_NOTES;
             counter <= 26'd0;
