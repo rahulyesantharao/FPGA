@@ -3,14 +3,14 @@
 module menu
 #(
     parameter NUM_BITS = 2,
-    parameter BOTTOM_CHOICE = 2'd0,
-    parameter TOP_CHOICE = 2'd3
+    parameter BOTTOM_CHOICE = 2'd0
 )
 (
     input logic clk_in,
     input logic rst_in,
     input logic btn_up,
     input logic btn_down,
+    input logic [1:0] top_choice,
     output logic [NUM_BITS - 1:0] choice
 );
     // current selection
@@ -20,8 +20,8 @@ module menu
     logic [NUM_BITS - 1:0] next_selection;
     always_comb begin
         case({btn_up, btn_down})
-            2'b10: next_selection = (current_selection > BOTTOM_CHOICE) ? current_selection - 1 : TOP_CHOICE;
-            2'b01: next_selection = (current_selection < TOP_CHOICE) ? current_selection + 1 : BOTTOM_CHOICE;
+            2'b10: next_selection = (current_selection > BOTTOM_CHOICE) ? current_selection - 1 : top_choice;
+            2'b01: next_selection = (current_selection < top_choice) ? current_selection + 1 : BOTTOM_CHOICE;
             default: next_selection = current_selection; // if they hit both buttons or neither, don't change
         endcase
     end

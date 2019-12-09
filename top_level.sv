@@ -42,7 +42,7 @@ synchronize sw4_sync(.clk_in(clk_100mhz), .unsync_in(sw[4]), .sync_out(sync_sw[4
 synchronize sw5_sync(.clk_in(clk_100mhz), .unsync_in(sw[5]), .sync_out(sync_sw[5]));
 synchronize sw6_sync(.clk_in(clk_100mhz), .unsync_in(sw[6]), .sync_out(sync_sw[6]));
 synchronize sw7_sync(.clk_in(clk_100mhz), .unsync_in(sw[7]), .sync_out(sync_sw[7]));
-
+synchronize sw15_sync(.clk_in(clk_100mhz), .unsync_in(sw[15]), .sync_out(sync_sw[15]));
 // debounce buttons
 logic db_btnc, db_btnu, db_btnd, db_btnl;
 debounce btnc_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnc), .clean_out(db_btnc));
@@ -100,8 +100,8 @@ localparam TYPE_LEARN = 2'd2;
 localparam TYPE_PLAY = 2'd3;
 // mode menu
 logic [1:0] current_type_choice;
-menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD), .TOP_CHOICE(TYPE_PLAY)) 
-    mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice));
+menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD)) 
+    mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice), .top_choice(TYPE_PLAY));
 
 logic [3:0] game_state;
 localparam GAME_STATE_FINISH = 4'd5;
@@ -132,6 +132,12 @@ end
     
 ////////////////////////////////////////////////////
 
+logic enable;
+assign enable = (state == STATE_TYPE && current_type == TYPE_4);
+
+logic song_created = 1'b0;
+always_ff @(posedge clk_100mhz) song_created <= enable | song_created;
+
 // game controller
 logic [2:0] game_vga_mode;
 logic [1:0] game_menu_pos;
@@ -148,6 +154,15 @@ logic new_note_shifting_in;
 
 logic [6:0] user_note_out;
 UART_decoder my_note(.jb(jb), .clk_100mhz(clk_100mhz), .reset(db_btnl), .led(user_note_out));
+
+logic ram_wea;
+logic [9:0] ram_address;
+logic [7:0] ram_write_data;
+create_song my_song_creator (.clk_100mhz(clk_100mhz), .enable(enable), .note_in(user_note_out), .value(ram_write_data), .write_enable(ram_wea), .address_out(ram_address));
+
+logic [7:0] song_read_note;
+logic [9:0] song_read_current_addr;
+song_rom my_songs(.clka(clk_100mhz), .addra(ram_address), .dina(ram_write_data), .wea(ram_wea), .clkb(clk_100mhz), .addrb(song_read_current_addr), .doutb(song_read_note));
 
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
@@ -175,7 +190,10 @@ my_game (
     .game_state_out(game_state),
     .mode_choice_out(mode_choice),
     .song_choice_out(song_choice),
-    .shifting_out(new_note_shifting_in)
+    .shifting_out(new_note_shifting_in),
+    .song_select_read_note(song_read_note),
+    .song_select_current_addr(song_read_current_addr),
+    .custom_song_activated(song_created)
 );
 
 // FFT Analyzer
@@ -338,7 +356,9 @@ assign seg_data[11:0] = disp_score;
 
 localparam GAME_MODE = 3'b110;
 localparam LEARN_MODE = 3'b101;
-assign led = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {1'b0, user_note_out, game_current_notes[34:28]} : 15'b0;
+assign led[15] = enable;
+assign led[14] = song_created;
+assign led[13:0] = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {user_note_out, game_current_notes[34:28]} : 14'b0;
 
 endmodule
 
