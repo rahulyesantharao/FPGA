@@ -281,8 +281,8 @@ wire phsync,pvsync,pblank;
 // jacobp - try making game_vga_mode, game_menu_pos, current_type_choice,
 // game_current_notes into the sync65 versions
 pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sync65_full_vga_mode), .selection((sync65_full_vga_mode == BASIC_SONG_MENU) ? sync65_game_menu_pos : sync65_current_type_choice),
-            .notes(sync65_game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(sync65_game_current_notes[34:28]), .user_note(sync65_user_note),
-            .hcount_in(hcount),.vcount_in(vcount),
+            .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(sync65_game_current_notes[34:28]), .user_note(sync65_user_note),
+            .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
             .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank_ignore),
             .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
 
@@ -304,14 +304,23 @@ always_ff @(posedge clk_65mhz) begin
     assign vga_vs = ~vs;
 //////
 
-
+logic [11:0] disp_score;
+score_calc my_score_calc(
+.score(game_current_score),
+  .max_score(game_current_max_score),
+  .start(game_state == GAME_STATE_FINISH),
+  .clk(clk_100mhz),
+  .disp_score(disp_score)
+);
 
 // DEBUGGING OUTPUT
 // segment display
-assign seg_data[31:28] = game_state;
-assign seg_data[27:16] = game_current_score;
-assign seg_data[15:12] = 4'd0;
-assign seg_data[11:0] = game_current_max_score;
+assign seg_data[31:12] = 0;
+assign seg_data[11:0] = disp_score;
+//assign seg_data[31:28] = game_state;
+//assign seg_data[27:16] = game_current_score;
+//assign seg_data[15:12] = 4'd0;
+//assign seg_data[11:0] = game_current_max_score;
 //assign seg_data[31:28] = game_state;
 //assign seg_data[27:24] = {current_type, song_choice};
 //assign seg_data[27:24] = {2'b0, current_type};
@@ -483,3 +492,91 @@ always_ff @(posedge clk_in) begin
     endcase
 end
 endmodule
+
+
+module score_calc(
+  input logic[11:0] score,
+  input logic[11:0] max_score,
+  input logic start,
+  input logic clk,
+  output logic[11:0] disp_score
+);
+localparam ACCURACY = 7'd100;
+
+// state
+logic [18:0] dividend = 19'd0;
+logic [11:0] divisor = 12'd0;
+logic [3:0] pow_index = 4'd0;
+logic [11:0] calculated_score = 12'd0;
+
+// state transitions
+logic [18:0] next_dividend;
+logic [11:0] next_divisor;
+logic [3:0] next_pow_index;
+logic [11:0] next_calculated_score;
+
+// constants
+logic [9:0] multiplier;
+logic [9:0] hex_multiplier;
+powers_of_ten m(.ind(pow_index), .pow(multiplier));
+powers_of_sixteen n(.ind(pow_index), .pow(hex_multiplier));
+
+always_comb begin
+  if(divisor > 12'd0 && dividend >= multiplier * divisor) begin
+    next_dividend = dividend - multiplier * divisor;
+    next_divisor = divisor;
+    next_pow_index = pow_index;
+    next_calculated_score = calculated_score + hex_multiplier;
+  end else begin
+    next_dividend = dividend;
+    // stop once the pow index is done with zeros
+    if(pow_index > 4'd0) begin
+        next_pow_index = pow_index - 4'd1;
+        next_divisor = divisor;
+    end else begin 
+        next_pow_index = 4'd0;
+        next_divisor = 12'd0;
+    end
+    next_calculated_score = calculated_score;
+  end
+end
+
+// state update
+assign disp_score = calculated_score;
+always_ff @(posedge clk) begin
+  if(start) begin
+    dividend <= ACCURACY * score;
+    divisor <= max_score;
+    pow_index <= 4'd2;
+    calculated_score <= 12'd0;
+  end else begin
+    dividend <= next_dividend;
+    divisor <= next_divisor;
+    pow_index <= next_pow_index;
+    calculated_score <= next_calculated_score; 
+  end
+end
+endmodule
+
+module powers_of_ten(input logic[3:0] ind, output logic [9:0] pow);
+always_comb begin
+  case(ind)
+    4'd0: pow = 10'd1;
+    4'd1: pow = 10'd10;
+    4'd2: pow = 10'd100;
+    default: pow = 4'd0;
+  endcase
+end
+endmodule
+
+module powers_of_sixteen(input logic[3:0] ind, output logic [9:0] pow);
+always_comb begin
+  case(ind)
+    4'd0: pow = 10'd1;
+    4'd1: pow = 10'd16;
+    4'd2: pow = 10'd256;
+    default: pow = 4'd0;
+  endcase
+end
+endmodule
+

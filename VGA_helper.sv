@@ -23,6 +23,7 @@ module VGA_helper(
     input[15:0] sw,
     input btnu,
     input btnd,
+    input reset,
     output[3:0] vga_r,
     output[3:0] vga_b,
     output[3:0] vga_g,
@@ -57,7 +58,7 @@ module VGA_helper(
     wire phsync,pvsync,pblank;
     pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sw[15:13]), .selection(selection),
                 .notes(notes), .new_note(new_note), .learning_note(sw[6:0]), .user_note(sw[13:7]),
-                .hcount_in(hcount),.vcount_in(vcount),
+                .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
                 .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank),
                 .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
 
@@ -104,6 +105,7 @@ module pixel_helper(
     input clk_65mhz,
     input [34:0] notes,
     input new_note,
+    input reset,
     input [6:0] learning_note,
     input [6:0] user_note,
     input [10:0] hcount_in, // horizontal index of current pixel (0..1023)
@@ -200,6 +202,8 @@ module pixel_helper(
     keyboard_lut note_4_lut(.clk_65mhz(clk_65mhz), .note_index(notes[13:7]), .x_loc(note_4_x));
     keyboard_lut note_5_lut(.clk_65mhz(clk_65mhz), .note_index(notes[6:0]), .x_loc(note_5_x));
     
+    logic [10:0] note_1_new_x, note_2_new_x, note_3_new_x, note_4_new_x, note_5_new_x;
+    
     logic [9:0] note_1_y, note_2_y, note_3_y, note_4_y, note_5_y;
 
     blob #(.WIDTH(10),.HEIGHT(160),.COLOR(12'h00F))
@@ -224,6 +228,7 @@ module pixel_helper(
     
     parameter CYCLES_PER_MOVEMENT = 203125;
     logic [17:0] counter = 18'b0;
+    logic prev_new_note;
     
     always_ff @(posedge clk_65mhz) begin
     
@@ -235,16 +240,32 @@ module pixel_helper(
             BASIC_SONG_MENU:        pixel_out <= song_menu_pixel & selector_pixel;
             CUSTOM_SONG_MENU:       pixel_out <= song_menu_custom_pixel & selector_pixel;
             LEARN_MODE:             pixel_out <= keyboard_pixel & learning_note_pixel & user_note_pixel;
-            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel & user_note_pixel);
+            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (vcount_in == 0 || vcount_in == 160 || vcount_in == 320 || vcount_in == 480) ? 12'h000: (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel & user_note_pixel);
+            //GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel);
         
         endcase
         
-        counter <= (!(screen == GAME_MODE) || counter == CYCLES_PER_MOVEMENT) ? 18'b0 : counter + 1;
-        note_1_y <= (new_note) ? 480 : (counter == CYCLES_PER_MOVEMENT) ? note_1_y + 2 : note_1_y;
-        note_2_y <= (new_note) ? 320 : (counter == CYCLES_PER_MOVEMENT) ? note_2_y + 2 : note_2_y;
-        note_3_y <= (new_note) ? 160 : (counter == CYCLES_PER_MOVEMENT) ? note_3_y + 2 : note_3_y;
-        note_4_y <= (new_note) ? 0 : (counter == CYCLES_PER_MOVEMENT) ? note_4_y + 2 : note_4_y;
-        note_5_y <= (new_note) ? 864 : (counter == CYCLES_PER_MOVEMENT) ? note_5_y + 2 : note_5_y;
+        if (reset) begin
+        
+            counter <= 18'b0;
+        
+        end else begin
+        
+            counter <= (!(screen == GAME_MODE) || counter == CYCLES_PER_MOVEMENT || new_note) ? 18'b0 : counter + 1;
+            note_1_new_x <= (prev_new_note) ? note_1_x : note_1_new_x;
+            note_2_new_x <= (prev_new_note) ? note_2_x : note_2_new_x;
+            note_3_new_x <= (prev_new_note) ? note_3_x : note_3_new_x;
+            note_4_new_x <= (prev_new_note) ? note_4_x : note_4_new_x;
+            note_5_new_x <= (prev_new_note) ? note_5_x : note_5_new_x;
+            
+            note_1_y <= (new_note) ? 480 : ((counter == CYCLES_PER_MOVEMENT) ? note_1_y + 2 : note_1_y);
+            note_2_y <= (new_note) ? 320 : ((counter == CYCLES_PER_MOVEMENT) ? note_2_y + 2 : note_2_y);
+            note_3_y <= (new_note) ? 160 : ((counter == CYCLES_PER_MOVEMENT) ? note_3_y + 2 : note_3_y);
+            note_4_y <= (new_note) ? 0 : ((counter == CYCLES_PER_MOVEMENT) ? note_4_y + 2 : note_4_y);
+            note_5_y <= (new_note) ? 864 : ((counter == CYCLES_PER_MOVEMENT) ? note_5_y + 2 : note_5_y);
+            
+            prev_new_note <= new_note;
+        end
     
     end
     

@@ -304,10 +304,11 @@ module song_select (
     logic [3:0] start_counter = 4'd10; // 10 = stable value, 11 -> 0 in one cycle, 0*2 -> 4*2+1 read start values
     logic [1:0] game_type;
     logic shifting;
+    logic [3:0] shifting_regs = 4'd0;
     
     // BROM -----------------------------------
     logic [7:0] read_note;
-    song_rom my_songs(.clka(clk_in), .addra(current_addr), .douta(read_note));
+    song_rom my_songs(.clka(clk_in), .addrb(current_addr), .doutb(read_note));
     
     // STATE TRANSITIONS ----------------------
     logic [34:0] next_notes;
@@ -315,6 +316,7 @@ module song_select (
     logic [9:0] next_addr;
     logic [3:0] next_start_counter;
     logic next_shifting;
+    
     always_comb begin
         if(start_counter < 4'd10) begin
           if(start_counter & 4'b1 == 4'b1) begin
@@ -372,6 +374,7 @@ module song_select (
             start_counter <= 4'd10;
             game_type <= TYPE_PLAY;
             shifting <= 1'b0;
+            shifting_regs <= 4'd0;
         end else if(start) begin
             current_notes <= INIT_NOTES;
             counter <= 26'd0;
@@ -379,13 +382,15 @@ module song_select (
             start_counter <= 4'd11; // start sentinel value
             game_type <= game_type_in; // latch game type
             shifting <= 1'b0;
+            shifting_regs <= 4'd0;
         end else begin
             current_notes <= next_notes;
             counter <= next_counter;
             current_addr <= next_addr;
             start_counter <= next_start_counter;
             game_type <= game_type; // only reset on start
-            shifting <= next_shifting;
+            shifting <= |shifting_regs[3:0];
+            shifting_regs[3:0] <= {shifting_regs[2:0], next_shifting};
         end 
     end
 endmodule
