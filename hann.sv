@@ -1,3 +1,6 @@
+`timescale 1ns / 1ps
+///////////////////////////////////////////////////////////////
+// Hann LUT - A LUT for the Hann windowing coefficients, length 4096
 module hann(input logic [11:0] n, output logic [23:0] coeff);
     always_comb begin
         case(n)
