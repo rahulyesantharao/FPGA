@@ -370,6 +370,10 @@ assign led[15:0] = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ?
 
 endmodule
 
+// Synchronization Modules
+//  - Modules to synchronize values of varying bitwidths.
+
+// 1-bit Synchronizer
 module synchronize #(parameter NSYNC=3) (
     input clk_in,
     input unsync_in,
@@ -381,17 +385,7 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
-module synchronize3 (
-    input clk_in,
-    input [2:0] unsync_in,
-    output reg [2:0] sync_out
-);
-reg [8:0] sync;
-always_ff @(posedge clk_in) begin
-    {sync_out[2:0], sync[8:0]} <= {sync[8:0], unsync_in[2:0]};
-end
-endmodule
-
+// 2-bit Synchronizer
 module synchronize2 (
     input clk_in,
     input [1:0] unsync_in,
@@ -403,6 +397,19 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
+// 3-bit Synchronizer
+module synchronize3 (
+    input clk_in,
+    input [2:0] unsync_in,
+    output reg [2:0] sync_out
+);
+reg [8:0] sync;
+always_ff @(posedge clk_in) begin
+    {sync_out[2:0], sync[8:0]} <= {sync[8:0], unsync_in[2:0]};
+end
+endmodule
+
+// 7-bit Synchronizer
 module synchronize7 (
     input clk_in,
     input [6:0] unsync_in,
@@ -414,6 +421,7 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
+// 35-bit Synchronizer
 module synchronize35 (
     input clk_in,
     input [34:0] unsync_in,
@@ -425,6 +433,7 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
+// Debounce Module - debounces an input signal, includes synchronization
 module debounce (
     input rst_in,
     input clk_in,
@@ -451,7 +460,7 @@ always_ff @(posedge clk_in) begin
 end
 endmodule
 
-// display module for 7-segment display                                        
+// display module for 7-segment display
 module display_8hex(
 input clk_in,                 // system clock
 input [31:0] data_in,         // 8 hex numbers, msb first
@@ -522,20 +531,25 @@ end
 endmodule
 
 
+//////////////////////////////////////////
+// Score Calculation Module - Calculates the score as a percentage to the
+// nearest integer. Performs this calculation in an iterative fashion,
+// subtracting of multiples of decreasing powers of 10.
 module score_calc(
-  input logic[11:0] score,
-  input logic[11:0] max_score,
-  input logic start,
-  input logic clk,
-  output logic[11:0] disp_score
+  input logic[11:0] score, // the current score 
+  input logic[11:0] max_score, // the maximum score possible
+  input logic start, // a start pulse to begin the calculation
+  input logic clk, // the input clock
+  output logic[11:0] disp_score // a 3-digit decimal output (4 bits per digit)
 );
+// The scaling factor to get to the nearest integer.
 localparam ACCURACY = 7'd100;
 
 // state
-logic [18:0] dividend = 19'd0;
-logic [11:0] divisor = 12'd0;
-logic [3:0] pow_index = 4'd0;
-logic [11:0] calculated_score = 12'd0;
+logic [18:0] dividend = 19'd0; // the score that is currently being divided
+logic [11:0] divisor = 12'd0; // the max-score that is dividing
+logic [3:0] pow_index = 4'd0; // the index of the current place value
+logic [11:0] calculated_score = 12'd0; // the current decimal score
 
 // state transitions
 logic [18:0] next_dividend;
@@ -543,7 +557,7 @@ logic [11:0] next_divisor;
 logic [3:0] next_pow_index;
 logic [11:0] next_calculated_score;
 
-// constants
+// constants (the current place value)
 logic [9:0] multiplier;
 logic [9:0] hex_multiplier;
 powers_of_ten m(.ind(pow_index), .pow(multiplier));
@@ -551,28 +565,26 @@ powers_of_sixteen n(.ind(pow_index), .pow(hex_multiplier));
 
 always_comb begin
   if(divisor > 12'd0 && dividend >= multiplier * divisor) begin
+    // we are able to add one more to the current place value
     next_dividend = dividend - multiplier * divisor;
     next_divisor = divisor;
     next_pow_index = pow_index;
     next_calculated_score = calculated_score + hex_multiplier;
   end else begin
     next_dividend = dividend;
-    // stop once the pow index is done with zeros
-    if(pow_index > 4'd0) begin
-        next_pow_index = pow_index - 4'd1;
-        next_divisor = divisor;
-    end else begin 
-        next_pow_index = 4'd0;
-        next_divisor = 12'd0;
-    end
     next_calculated_score = calculated_score;
+    // we must step down to the next place value
+    // stop once the pow index is done with zeros
+    next_pow_index = (pow_index > 4'd0) pow_index - 4'd1 : 4'd0;
+    next_divisor = (pow_index > 4'd0) divisor : 12'd0;
   end
 end
 
-// state update
+// state update and outputs
 assign disp_score = calculated_score;
 always_ff @(posedge clk) begin
-  if(start) begin
+  if(start) begin 
+    // latch the current input values and start at highest place value
     dividend <= ACCURACY * score;
     divisor <= max_score;
     pow_index <= 4'd2;
@@ -586,6 +598,7 @@ always_ff @(posedge clk) begin
 end
 endmodule
 
+// A lookup table for powers of 10.
 module powers_of_ten(input logic[3:0] ind, output logic [9:0] pow);
 always_comb begin
   case(ind)
@@ -597,6 +610,7 @@ always_comb begin
 end
 endmodule
 
+// A lookup table for powers of 16.
 module powers_of_sixteen(input logic[3:0] ind, output logic [9:0] pow);
 always_comb begin
   case(ind)
