@@ -1,17 +1,20 @@
-// In general, the menu should deal with 2-bit indices
-// A selection menu; continuously outputs the current choice
+`timescale 1ns / 1ps
+///////////////////////////////////////////////////////////////
+// Menu Module - Provides the state machine for all menus in the system
+//   In general, the menu deals with 2-bit indices, and continuously
+//   outputs the current choice.
 module menu
 #(
-    parameter NUM_BITS = 2,
-    parameter BOTTOM_CHOICE = 2'd0
+    parameter NUM_BITS = 2, // the number of bits in the choices
+    parameter BOTTOM_CHOICE = 2'd0 // the lowest choice number in the menu
 )
 (
-    input logic clk_in,
-    input logic rst_in,
-    input logic btn_up,
-    input logic btn_down,
-    input logic [1:0] top_choice,
-    output logic [NUM_BITS - 1:0] choice
+    input logic clk_in, // input clock
+    input logic rst_in, // system reset
+    input logic btn_up, // up control
+    input logic btn_down, // down control
+    input logic [1:0] top_choice, // the highest possible choice in the menu
+    output logic [NUM_BITS - 1:0] choice // the current choice in the menu
 );
     // current selection
     logic [NUM_BITS - 1:0] current_selection = BOTTOM_CHOICE;
