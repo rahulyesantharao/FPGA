@@ -1,125 +1,34 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/18/2019 08:04:50 PM
-// Design Name: 
-// Module Name: VGA_helper
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-//module VGA_helper(
-//    input clk_100mhz,
-//    input[15:0] sw,
-//    input btnu,
-//    input btnd,
-//    input reset,
-//    output[3:0] vga_r,
-//    output[3:0] vga_b,
-//    output[3:0] vga_g,
-//    output vga_hs,
-//    output vga_vs,
-//    output[15:0] led
-//    );
-    
-//    // create 65mhz system clock, happens to match 1024 x 768 XVGA timing
-//    clk_wiz_lab3 clkdivider(.clk_in1(clk_100mhz), .clk_out1(clk_65mhz));
-    
-//    wire [10:0] hcount;    // pixel on current line
-//    wire [9:0] vcount;     // line number
-//    wire hsync, vsync;
-//    wire [11:0] pixel;
-//    reg [11:0] rgb;    
-//    xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
-//          .hsync_out(hsync),.vsync_out(vsync),.blank_out(blank));
-   
-//    // UP and DOWN buttons for pong paddle
-//    wire up,down;
-//    debounce db2(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnu),.clean_out(up));
-//    debounce db3(.reset_in(0),.clock_in(clk_65mhz),.noisy_in(btnd),.clean_out(down));
-    
-//    logic [2:0] selection = 3'b000;
-//    logic [34:0] notes = 35'h7F4895327;
-//    logic new_note;
-//    logic [6:0] next_note = 7'b0101000;
-    
-//    assign led[2:0] = selection;
 
-//    wire phsync,pvsync,pblank;
-//    pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sw[15:13]), .selection(selection),
-//                .notes(notes), .new_note(new_note), .learning_note(sw[6:0]), .user_note(sw[13:7]),
-//                .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
-//                .hsync_in(hsync),.vsync_in(vsync),.blank_in(blank),
-//                .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
-
-//    reg b,hs,vs;
-    
-//    parameter CYCLES_PER_NOTE = 16250000;
-//    logic [23:0] counter = 24'b0;
-    
-//    logic time_for_new_note;
-//    assign time_for_new_note = (counter == CYCLES_PER_NOTE);
-    
-//    always_ff @(posedge clk_65mhz) begin
-//        // default: pong
-//        selection <= up ? down ? selection : selection - 1 : down ? selection + 1 : selection;
-        
-//        counter <= time_for_new_note ? 24'b0 : counter + 1;
-//        new_note <= time_for_new_note;
-//        notes <= time_for_new_note ? {notes[27:0], next_note} : notes;
-//        next_note <= time_for_new_note ? (next_note == 7'b1010100) ? 7'b0100100 : next_note + 1 : next_note;
-        
-//        hs <= phsync;
-//        vs <= pvsync;
-//        b <= pblank;
-//        rgb <= pixel;
-//    end
-
-////    assign rgb = sw[0] ? {12{border}} : pixel ; //{{4{hcount[7]}}, {4{hcount[6]}}, {4{hcount[5]}}};
-
-//    // the following lines are required for the Nexys4 VGA circuit - do not change
-//    assign vga_r = ~b ? rgb[11:8]: 0;
-//    assign vga_g = ~b ? rgb[7:4] : 0;
-//    assign vga_b = ~b ? rgb[3:0] : 0;
-
-//    assign vga_hs = ~hs;
-//    assign vga_vs = ~vs;
-
-//endmodule
-
-
+//pixel_helper takes as input the type of screen we are on, the current location of a menu selector,
+//a 65MHz clock, the current 5 notes for the falling display in game mode,
+//a new_note signal to indicate that a new note has been shifted into the shift register,
+//a reset signal, the current note for learning mode, the current note being played by the user,
+//and then the standard VGA signals (hcount, vcount, hsync, vsync, and blank);
+//it uses this information to generate the proper pixel values, outputting phsync_out, pvsync_out, pblank_out, and pixel_out
 
 module pixel_helper(
-    input [2:0] screen,
-    input [1:0] selection,
-    input clk_65mhz,
-    input [34:0] notes,
-    input new_note,
-    input reset,
-    input [6:0] learning_note,
-    input [6:0] user_note,
-    input [10:0] hcount_in, // horizontal index of current pixel (0..1023)
-    input [9:0]  vcount_in, // vertical index of current pixel (0..767)
-    input hsync_in,         // XVGA horizontal sync signal (active low)
-    input vsync_in,         // XVGA vertical sync signal (active low)
-    input blank_in,         // XVGA blanking (1 means output black pixel)
+    input [2:0] screen,         //type of screen
+    input [1:0] selection,      //menu selector location
+    input clk_65mhz,            //clock
+    input [34:0] notes,         //5 notes to display in game mode
+    input new_note,             //pulse to indicate a new note shifted into notes register
+    input reset,                //reset
+    input [6:0] learning_note,  //current learning mode note
+    input [6:0] user_note,      //current note user is playing
+    input [10:0] hcount_in,     // horizontal index of current pixel (0..1023)
+    input [9:0]  vcount_in,     // vertical index of current pixel (0..767)
+    input hsync_in,             // XVGA horizontal sync signal (active low)
+    input vsync_in,             // XVGA vertical sync signal (active low)
+    input blank_in,             // XVGA blanking (1 means output black pixel)
         
-    output phsync_out,       // pong game's horizontal sync
-    output pvsync_out,       // pong game's vertical sync
-    output pblank_out,       // pong game's blanking
-    output logic [11:0] pixel_out  // pong game's pixel  // r=11:8, g=7:4, b=3:0 
+    output phsync_out,          // output horizontal sync
+    output pvsync_out,          // output vertical sync
+    output pblank_out,          // output blanking
+    output logic [11:0] pixel_out  // output pixel  // r=11:8, g=7:4, b=3:0 
     );
     
+    //different possible screens
     parameter MAIN_MENU = 3'b000;
     parameter KEYBOARD_INSTRUCTIONS = 3'b001;
     parameter SONG_INSTRUCTIONS = 3'b010;
@@ -150,7 +59,7 @@ module pixel_helper(
         song_instructions(.pixel_clk_in(clk_65mhz), .x_in(250),.y_in(250),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(song_inst_pixel));
     
-    //the song menu
+    //the basic song menu
     wire [11:0] song_menu_pixel;
     picture_blob_song_menu_basic
         song_menu(.pixel_clk_in(clk_65mhz), .x_in(250),.y_in(250),.hcount_in(hcount_in),.vcount_in(vcount_in),
@@ -168,7 +77,7 @@ module pixel_helper(
         keyboard(.pixel_clk_in(clk_65mhz), .x_in(0),.y_in(640),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(keyboard_pixel));
             
-    //the selector
+    //the menu-navigation selector
     logic [9:0] selector_y;
     selector_lut my_sel_lut(.clk_65mhz(clk_65mhz), .selector(selection), .y_loc(selector_y));
     
@@ -177,6 +86,7 @@ module pixel_helper(
         selector(.x_in(650),.y_in(selector_y),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(selector_pixel));
     
+    //the learning mode note indicator
     logic [10:0] learning_note_x;
     keyboard_lut my_learn_lut(.clk_65mhz(clk_65mhz), .note_index(learning_note), .x_loc(learning_note_x));
     
@@ -184,7 +94,8 @@ module pixel_helper(
     blob #(.WIDTH(10),.HEIGHT(160),.COLOR(12'h00F))
         learning_note_blob(.x_in(learning_note_x),.y_in(480),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(learning_note_pixel));
-            
+    
+    //the user note indicator      
     logic [10:0] user_note_x;
     keyboard_lut my_user_lut(.clk_65mhz(clk_65mhz), .note_index(user_note), .x_loc(user_note_x));
     
@@ -192,9 +103,11 @@ module pixel_helper(
     blob #(.WIDTH(10),.HEIGHT(60),.COLOR(12'h0F0))
         user_note_blob(.x_in(user_note_x),.y_in(580),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(user_note_pixel));
-            
+    
+    //5 indicator rectangles for notes in falling display during game mode     
     wire [11:0] note_1_pixel, note_2_pixel, note_3_pixel, note_4_pixel, note_5_pixel;
-            
+    
+    //use look up table of x-positions to find x-locations for 5 notes
     logic [10:0] note_1_x, note_2_x, note_3_x, note_4_x, note_5_x;
     keyboard_lut note_1_lut(.clk_65mhz(clk_65mhz), .note_index(notes[34:28]), .x_loc(note_1_x));
     keyboard_lut note_2_lut(.clk_65mhz(clk_65mhz), .note_index(notes[27:21]), .x_loc(note_2_x));
@@ -202,10 +115,13 @@ module pixel_helper(
     keyboard_lut note_4_lut(.clk_65mhz(clk_65mhz), .note_index(notes[13:7]), .x_loc(note_4_x));
     keyboard_lut note_5_lut(.clk_65mhz(clk_65mhz), .note_index(notes[6:0]), .x_loc(note_5_x));
     
+    //locations for actual blob objects, only updated when a new note is shifted in
     logic [10:0] note_1_new_x, note_2_new_x, note_3_new_x, note_4_new_x, note_5_new_x;
     
+    //notes' y-positions
     logic [9:0] note_1_y, note_2_y, note_3_y, note_4_y, note_5_y;
-
+    
+    //blob objects for notes in falling display
     blob #(.WIDTH(10),.HEIGHT(160),.COLOR(12'h00F))
         note_1_blob(.x_in(note_1_x),.y_in(note_1_y),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(note_1_pixel));
@@ -226,12 +142,13 @@ module pixel_helper(
         note_5_blob(.x_in(note_5_x),.y_in(note_5_y),.hcount_in(hcount_in),.vcount_in(vcount_in),
             .pixel_out(note_5_pixel));
     
-    parameter CYCLES_PER_MOVEMENT = 203125;
+    parameter CYCLES_PER_MOVEMENT = 203125;     //number of clock cycles between downward movement of each note for falling display during game mode
     logic [17:0] counter = 18'b0;
     logic prev_new_note;
     
     always_ff @(posedge clk_65mhz) begin
     
+        //determine which objects to display depending on screen type
         case(screen)
         
             MAIN_MENU:              pixel_out <= main_menu_pixel & selector_pixel;
@@ -240,8 +157,9 @@ module pixel_helper(
             BASIC_SONG_MENU:        pixel_out <= song_menu_pixel & selector_pixel;
             CUSTOM_SONG_MENU:       pixel_out <= song_menu_custom_pixel & selector_pixel;
             LEARN_MODE:             pixel_out <= keyboard_pixel & learning_note_pixel & user_note_pixel;
-            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (vcount_in == 0 || vcount_in == 160 || vcount_in == 320 || vcount_in == 480) ? 12'h000: (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel & user_note_pixel);
-            //GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel : (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel);
+            GAME_MODE:              pixel_out <= (vcount_in >= 640) ? keyboard_pixel :
+                                        (vcount_in == 0 || vcount_in == 160 || vcount_in == 320 || vcount_in == 480) ?
+                                        12'h000: (note_1_pixel & note_2_pixel & note_3_pixel & note_4_pixel & note_5_pixel & user_note_pixel);
         
         endcase
         
@@ -252,12 +170,17 @@ module pixel_helper(
         end else begin
         
             counter <= (!(screen == GAME_MODE) || counter == CYCLES_PER_MOVEMENT || new_note) ? 18'b0 : counter + 1;
+            
+            //update x-positions of notes when a new note is shifted in
             note_1_new_x <= (prev_new_note) ? note_1_x : note_1_new_x;
             note_2_new_x <= (prev_new_note) ? note_2_x : note_2_new_x;
             note_3_new_x <= (prev_new_note) ? note_3_x : note_3_new_x;
             note_4_new_x <= (prev_new_note) ? note_4_x : note_4_new_x;
             note_5_new_x <= (prev_new_note) ? note_5_x : note_5_new_x;
             
+            //set y-positions to (0, 160, 320, 480, 864=-160) when a new note is shifted in,
+            //then increment each by 2 whenever counter reaches CYCLES_PER_MOVEMENT;
+            //with a new note shifted in every quarter of a second, this produces a smooth, synchronized falling display
             note_1_y <= (new_note) ? 480 : ((counter == CYCLES_PER_MOVEMENT) ? note_1_y + 2 : note_1_y);
             note_2_y <= (new_note) ? 320 : ((counter == CYCLES_PER_MOVEMENT) ? note_2_y + 2 : note_2_y);
             note_3_y <= (new_note) ? 160 : ((counter == CYCLES_PER_MOVEMENT) ? note_3_y + 2 : note_3_y);
@@ -272,6 +195,7 @@ module pixel_helper(
     
 endmodule
 
+//Look up table for menu navigation; converts current choice within a menu to the appropriate y-location for the display
 module selector_lut(
     input clk_65mhz,
     input [1:0] selector,
@@ -291,6 +215,7 @@ module selector_lut(
     
 endmodule
 
+//Look up table converting any note index into the appropriate x-location on the display to match up with the keyboard image
 module keyboard_lut(
     input clk_65mhz,
     input [6:0] note_index,
@@ -360,7 +285,7 @@ module keyboard_lut(
             94: x_loc <= 11'h3C8;
             95: x_loc <= 11'h3D8;
             96: x_loc <= 11'h3EB;
-            default: x_loc <= 11'h7FF;         
+            default: x_loc <= 11'h7FF;      //default off-screen for invalid note indices   
         
         endcase
     end
@@ -391,7 +316,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the main menu
 //
 //////////////////////////////////////////////////
 module picture_blob_main_menu
@@ -402,7 +327,7 @@ module picture_blob_main_menu
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [15:0] image_addr;   // num of bits for 256*240 ROM
+   logic [15:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -428,7 +353,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the keyboard-playing instructions
 //
 //////////////////////////////////////////////////
 module picture_blob_keyboard_inst
@@ -439,7 +364,7 @@ module picture_blob_keyboard_inst
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [13:0] image_addr;   // num of bits for 256*240 ROM
+   logic [13:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -465,7 +390,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the song-creation instructions
 //
 //////////////////////////////////////////////////
 module picture_blob_song_inst
@@ -476,7 +401,7 @@ module picture_blob_song_inst
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [13:0] image_addr;   // num of bits for 256*240 ROM
+   logic [13:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -502,7 +427,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the keyboard
 //
 //////////////////////////////////////////////////
 module picture_blob_keyboard
@@ -513,7 +438,7 @@ module picture_blob_keyboard
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [17:0] image_addr;   // num of bits for 256*240 ROM
+   logic [17:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -539,7 +464,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the basic song menu
 //
 //////////////////////////////////////////////////
 module picture_blob_song_menu_basic
@@ -550,7 +475,7 @@ module picture_blob_song_menu_basic
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [15:0] image_addr;   // num of bits for 256*240 ROM
+   logic [15:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -576,7 +501,7 @@ endmodule
 
 ////////////////////////////////////////////////////
 //
-// picture_blob: display a picture
+// picture_blob: display a picture for the custom song menu
 //
 //////////////////////////////////////////////////
 module picture_blob_song_menu_custom
@@ -587,7 +512,7 @@ module picture_blob_song_menu_custom
     input [9:0] y_in,vcount_in,
     output logic [11:0] pixel_out);
 
-   logic [15:0] image_addr;   // num of bits for 256*240 ROM
+   logic [15:0] image_addr;
    logic [7:0] image_bits, red_mapped, green_mapped, blue_mapped;
 
    // calculate rom address and read the location
@@ -610,38 +535,6 @@ module picture_blob_song_menu_custom
         else pixel_out <= 12'hFFF;
    end
 endmodule
-
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// Pushbutton Debounce Module (video version - 24 bits)  
-//
-///////////////////////////////////////////////////////////////////////////////
-
-//module debounce (input reset_in, clock_in, noisy_in,
-//                 output reg clean_out);
-
-//   reg [19:0] count;
-//   reg new_input;
-
-////   always_ff @(posedge clock_in)
-////     if (reset_in) begin new <= noisy_in; clean_out <= noisy_in; count <= 0; end
-////     else if (noisy_in != new) begin new <= noisy_in; count <= 0; end
-////     else if (count == 650000) clean_out <= new;
-////     else count <= count+1;
-
-//   always_ff @(posedge clock_in)
-//     if (reset_in) begin 
-//        new_input <= noisy_in; 
-//        clean_out <= noisy_in; 
-//        count <= 0; end
-//     else if (noisy_in != new_input) begin new_input<=noisy_in; count <= 0; end
-//     else if (count == 650000) clean_out <= new_input;
-//     else count <= count+1;
-
-
-//endmodule
-
 
 //////////////////////////////////////////////////////////////////////////////////
 // Update: 8/8/2019 GH 

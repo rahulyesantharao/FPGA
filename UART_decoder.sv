@@ -1,41 +1,24 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/17/2019 08:13:14 PM
-// Design Name: 
-// Module Name: UART_decoder
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
-
+//Module to take values from UART transmission line, output note that user is currently playing
 module UART_decoder(
-    input [7:0] jb,
-    input clk_100mhz,
-    input reset,
-    output logic [6:0] led
+    input [7:0] jb,         //input transmission line on jb[0]
+    input clk_100mhz,       //100MHz clock
+    input reset,            //reset
+    output logic [6:0] led  //output note index, displayed on LEDs
     );
         
     logic [7:0] val_out;
     logic valid;
     logic [6:0] note;
-    logic [87:0] notes_played;
+    logic [87:0] notes_played;      //88 bit register, holding a 1 at every index corresponding to a note being played, 0 otherwise
     
+    //instantiation of MIDI_decoder, which takes in bytes from transmission line, correctly outputs 88-bit notes_played register
     MIDI_decoder my_MIDI (.byte_in(val_out), .valid_byte(valid),
                             .clk_100mhz(clk_100mhz), .reset(reset),
                             .note_out(note), .notes_played(notes_played));
-                            
+    
+    //instantiation of key_press module, which takes in 88-bit notes_played register, outputs a single note index
     key_press my_key_press (.clk_100mhz(clk_100mhz), .np(notes_played),
                             .note_index(led));
     
@@ -43,11 +26,11 @@ module UART_decoder(
     assign UART_in = jb[0];
     
     parameter CLK_CYCLES_PER_SECOND = 100000000;
-    parameter UART_BITS_PER_SECOND = 31250;
     parameter CLK_CYCLES_PER_UART_BIT = 3200;
     parameter IDLE_SAMPLE = 200;
     parameter DELAY = 1600;
     
+    //possible states
     parameter IDLE = 2'b00;
     parameter START_BIT = 2'b01;
     parameter SAMPLING_BITS = 2'b11;
@@ -69,6 +52,9 @@ module UART_decoder(
         
             case (state)
             
+                //in IDLE state, sample transmission line every 200 clock cycles, looking for falling edge of a start bit,
+                //meaning that a new message is coming in;
+                //if the transmission line has gone low, switch to START_BIT state
                 IDLE: begin
                 
                     val_out <= val_out;
@@ -79,6 +65,8 @@ module UART_decoder(
                 
                 end
                 
+                //in START_BIT state, wait 1600 clock cycles to get to middle of start bit,
+                //then switch to SAMPLING_BITS state
                 START_BIT: begin
                 
                     val_out <= val_out;
@@ -89,6 +77,9 @@ module UART_decoder(
                 
                 end
                 
+                //in SAMPLING_BITS state, increment index from 0 to 7 in order to fill up the output register with the byte transmitted;
+                //wait 3200 clock cycles between samplings of the transmission line, thus grabbing each bit of the byte in the middle;
+                //after getting all 8 bits, switch to STOP_BIT state
                 SAMPLING_BITS: begin
                 
                     val_out[index] = (counter == CLK_CYCLES_PER_UART_BIT - 1) ? UART_in : val_out[index];
@@ -99,6 +90,8 @@ module UART_decoder(
                 
                 end
                 
+                //in STOP_BIT state, wait 3200 clock cycles to get to the middle of the stop bit, then return to IDLE state,
+                //waiting for the next start bit
                 STOP_BIT : begin
                 
                     val_out <= val_out;
@@ -116,7 +109,9 @@ module UART_decoder(
     end
     
 endmodule
-
+ 
+//MIDI_decoder takes in bytes from UART_decoder, outputes 88-bit register notes_played filled with 1's at indices corresponding to notes
+//currently being played, 0's at indices corresponding to notes not currently being played
 module MIDI_decoder(
     input [7:0] byte_in,
     input valid_byte,
@@ -127,47 +122,18 @@ module MIDI_decoder(
     output logic [87:0] notes_played
     );
     
+    //bytes sent by keyboard indicating a note on or note off
     parameter NOTE_ON = 8'h40;
     parameter NOTE_OFF = 8'h00;
     
     logic [6:0] last_note;
-//    logic status;
-//    assign status = (byte_in == NOTE_ON) || (byte_in == NOTE_OFF);
-    
-//    always_ff @(posedge clk_100mhz) begin
-    
-//        if (reset) begin
-        
-//           last_note <= 7'h7F;
-//           note_out <= 7'h7F;
-//           valid <= 0; 
-            
-//        end else begin
-        
-//            if (valid_byte) begin
-            
-//                last_note <= status ? last_note : byte_in[6:0];
-//                note_out <= (byte_in == NOTE_OFF) ? 7'h7F : last_note;
-//                valid <= status;
-            
-//            end else begin
-            
-//                last_note <= last_note;
-//                note_out <= note_out;
-//                valid <= 0;
-            
-//            end
-        
-//        end
-    
-//    end
-
     logic status;
     logic [6:0] last_note_out;
     assign status = (byte_in == NOTE_ON) || (byte_in == NOTE_OFF);
     
     always_ff @(posedge clk_100mhz) begin
-    
+        
+        //upon reset, set all 88 bits to 0
         if (reset) begin
         
             last_note <= 7'h7F;
@@ -176,7 +142,10 @@ module MIDI_decoder(
             notes_played <= 88'b0;
         
         end else begin
-        
+            
+            //when we've gotten a valid byte, if it's a status byte (note on/off), then check what note is in the last_note register,
+            //and set that note's bit in the 88-bit register according to whether we just got a note on or note off signal;
+            //set last_note to the note index output by the keyboard on bytes that are not status bytes
             if (valid_byte) begin
             
                 last_note <= status ? last_note : byte_in[6:0];
@@ -184,6 +153,7 @@ module MIDI_decoder(
                 valid <= status;
                 notes_played[last_note] <= status ? (byte_in == NOTE_ON) : notes_played[last_note];
             
+            //waiting for a valid byte
             end else begin
             
                 last_note <= last_note;
@@ -201,12 +171,16 @@ module MIDI_decoder(
         
 endmodule
 
+//key_press module converts 88-bit register into single 7-bit note index;
+//this note_index is 7'h7F if no note is played, 7'h7E if multiple notes are being played,
+//or a specific number 0 through 87 if a single note is being played
 module key_press(
     input clk_100mhz,
     input [87:0] np,
     output logic [6:0] note_index
     );
     
+    //sum is the number of notes being played
     int sum;
     assign sum = np[0] + np[1] + np[2] + np[3] + np[4] + np[5] + np[6] + np[7] + np[8] + np[9] + np[10]
                 + np[11] + np[12] + np[13] + np[14] + np[15] + np[16] + np[17] + np[18] + np[19] + np[20] + np[21]
@@ -218,15 +192,18 @@ module key_press(
                 + np[77] + np[78] + np[79] + np[80] + np[81] + np[82] + np[83] + np[84] + np[85] + np[86] + np[87];
                 
     always @(posedge clk_100mhz) begin
-    
+        
+        //no note played: output 7'h7F
         if (sum == 0) begin
         
             note_index <= 7'h7F;
         
+        //multiple notes being played: output 7'h7E
         end else if (sum > 1) begin
         
             note_index <= 7'h7E;
         
+        //one note being played: case statement to determine which note is being played, output note_index accordingly
         end else begin
         
             case (np)

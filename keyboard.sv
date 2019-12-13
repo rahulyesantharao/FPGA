@@ -1,6 +1,6 @@
+//Sound Generation for Baseline Goal
 
-//Top level module (should not need to change except to uncomment ADC module)
-
+//keyboard module outputs values for PWM wave based on note and volume selection from input switches
 module keyboard(   input clk_100mhz,
                     input [9:0] sw,
                     input vauxp3,
@@ -12,7 +12,7 @@ module keyboard(   input clk_100mhz,
                     output logic aud_pwm,
                     output logic aud_sd
     );  
-    parameter SAMPLE_COUNT = 763;//gets approximately (will generate audio at approx 131,072 Hz sample rate).
+    parameter SAMPLE_COUNT = 763;//(will generate audio at approx 131,072 Hz sample rate).
     
     logic [15:0] sample_counter;
     logic [11:0] adc_data;
@@ -24,7 +24,6 @@ module keyboard(   input clk_100mhz,
     logic pwm_val; //pwm signal (HI/LO)
     
     assign aud_sd = 1;
-    //assign led = sw; //just to look pretty 
     assign sample_trigger = (sample_counter == SAMPLE_COUNT);
 
     always_ff @(posedge clk_100mhz)begin
@@ -35,19 +34,22 @@ module keyboard(   input clk_100mhz,
         end
         if (sample_trigger) begin
             sampled_adc_data <= {~adc_data[11],adc_data[10:0]}; //convert to signed. incoming data is offset binary
-            //https://en.wikipedia.org/wiki/Offset_binary
         end
-    end
+    end    
     
-    logic [31:0] phase_step;
- 
+    //get output data
     recorder myrec( .clk_in(clk_100mhz),.rst_in(0),
                     .ready_in(sample_trigger),
                     .data_out(recorder_data), .sw(sw));   
-                                                                                            
+    
+    //volume control from switches 7-9                                                                                        
     volume_control vc (.vol_in(sw[9:7]),
                        .signal_in(recorder_data), .signal_out(vol_out));
+    
+    //pwm output                   
     pwm (.clk_in(clk_100mhz), .rst_in(reset), .level_in({~vol_out[7],vol_out[6:0]}), .pwm_out(pwm_val));
+    
+    //only send nonzero output if keyboard is enabled
     assign aud_pwm = (pwm_val & enable) ? 1'bZ : 1'b0; 
     
 endmodule
@@ -73,13 +75,15 @@ module recorder(
     logic [7:0] tone;
     logic [31:0] freq;
     
+    //look up table for frequency corresponding to desired note
     freq_lut find_freq (.note_index(sw[6:0] - 7'd9), .clk_in(clk_in), .freq(freq));
     
+    //generate output sine wave at desired frequency
     sine_generator  out_tone (   .clk_in(clk_in), .rst_in(rst_in), 
                                  .step_in(ready_in), .freq(freq), .sine(1'b1), .amp_out(tone));
     
     always_ff @(posedge clk_in)begin
-        data_out = tone; //send tone immediately to output
+        data_out <= tone; //send tone immediately to output
     end                            
 endmodule                              
 
@@ -117,11 +121,10 @@ module sine_generator ( input clk_in, input rst_in, //clock and reset
                         
     parameter table_num = 64;
     parameter log_pulse_rate = 17;
-                        
-    //parameter PHASE_INCR = 32'b1000_0000_0000_0000_0000_0000_0000_0000>>5; //1/64th of 48 khz is 750 Hz
-    
+                            
     logic [31:0] phase_incr;
     
+    //calculate phase increment based on desired frequency
     assign phase_incr = ((freq << (32 - log_pulse_rate)) - (freq >> log_pulse_rate));
     assign phase_stepping = phase_incr;
     
@@ -131,10 +134,12 @@ module sine_generator ( input clk_in, input rst_in, //clock and reset
     logic [7:0] amp;
     
     assign amp = amp_sine;
-    
     assign amp_out = {~amp[7],amp[6:0]};
+    
+    //sine lookup table to get next value
     sine_lut lut_1(.clk_in(clk_in), .phase_in(phase[31:26]), .amp_out(amp_sine));
     
+    //increment phase, thus stepping through sine table
     always_ff @(posedge clk_in)begin
         if (rst_in)begin
             divider <= 8'b0;
@@ -145,6 +150,7 @@ module sine_generator ( input clk_in, input rst_in, //clock and reset
     end
 endmodule
 
+//frequency look up table, converting note_index to frequency value
 module freq_lut(input [6:0] note_index, input clk_in, output logic[31:0] freq);
     always_ff @(posedge clk_in) begin
         case(note_index)
