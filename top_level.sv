@@ -1,27 +1,25 @@
-// Top level module
-// TODO: figure out what inputs to use, uncomment appropriately in xdc
+///////////////////////////////////////
+// Top level module: Integrates all of the components.
 module top_level(
-  input clk_100mhz,
-  input [15:0] sw,
-  input btnc, btnu, btnd, btnr, btnl,
-  input vauxp3,
-  input vauxn3,
-  input vn_in,
-  input vp_in,
-  input [7:0] jb,
-  output logic [15:0] led,
-  output logic ca, cb, cc, cd, ce, cf, cg, dp,
-  output logic [7:0] an,
-  output logic aud_pwm,
-  output logic aud_sd,
-  output[3:0] vga_r,
-output[3:0] vga_b,
-output[3:0] vga_g,
-output vga_hs,
-output vga_vs
+    input clk_100mhz,
+    input [15:0] sw,
+    input btnc, btnu, btnd, btnr, btnl,
+    input vauxp3,
+    input vauxn3,
+    input vn_in,
+    input vp_in,
+    input [7:0] jb,
+    output logic [15:0] led,
+    output logic ca, cb, cc, cd, ce, cf, cg, dp,
+    output logic [7:0] an,
+    output logic aud_pwm,
+    output logic aud_sd,
+    output[3:0] vga_r,
+    output[3:0] vga_b,
+    output[3:0] vga_g,
+    output vga_hs,
+    output vga_vs
 );
-
-
 
 // setup clocks
 wire clk_104mhz, clk_65mhz;
@@ -54,14 +52,17 @@ debounce btnu_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnu), .cl
 debounce btnd_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnd), .clean_out(db_btnd));
 debounce btnl_debounce(.rst_in(reset), .clk_in(clk_100mhz), .noisy_in(btnl), .clean_out(db_btnl));
 
-keyboard my_keyboard(.clk_100mhz(clk_100mhz), .sw(sync_sw[9:0]), .vauxp3(vauxp3), .vauxn3(vauxn3), .vn_in(vn_in), .vp_in(vp_in), .reset(reset), .enable(sync_sw[15]), .aud_pwm(aud_pwm), .aud_sd(aud_sd));
-
+// Instantiate the keyboard module, to allow for system input through the Nexys4 switches.
+keyboard my_keyboard(.clk_100mhz(clk_100mhz), .sw(sync_sw[9:0]), .vauxp3(vauxp3), 
+    .vauxn3(vauxn3), .vn_in(vn_in), .vp_in(vp_in), .reset(reset), .enable(sync_sw[15]), 
+    .aud_pwm(aud_pwm), .aud_sd(aud_sd));
 
 // 7-segment display
 wire [31:0] seg_data;
 wire [6:0] segments;
 assign {cg, cf, ce, cd, cb, cc, ca} = segments[6:0];
-display_8hex seven_seg_display(.clk_in(clk_100mhz), .data_in(seg_data), .seg_out(segments), .strobe_out(an));
+display_8hex seven_seg_display(.clk_in(clk_100mhz), .data_in(seg_data), .seg_out(segments), 
+    .strobe_out(an));
 assign dp = 1'b1;
 
 // game controller
@@ -96,26 +97,30 @@ always_ff @(posedge clk_100mhz)begin
 end
 
 ////// TOP LEVEL FSM ///////////////////////////////////////
-// forward declaration of fft stuff
+// forward declaration of FFT signals and game state
 logic rising_lo;
 logic rising_hi;
+logic [3:0] game_state;
+
 // top level menu
 localparam TYPE_KEYBOARD = 2'd0;
 localparam TYPE_4 = 2'd1;
 localparam TYPE_LEARN = 2'd2;
 localparam TYPE_PLAY = 2'd3;
-// mode menu
 logic [1:0] current_type_choice;
 menu #(.BOTTOM_CHOICE(TYPE_KEYBOARD)) 
     mode_menu(.clk_in(clk_100mhz), .rst_in(reset), .btn_up(rising_btnu | rising_hi), .btn_down(rising_btnd | rising_lo), .choice(current_type_choice), .top_choice(TYPE_PLAY));
 
-logic [3:0] game_state;
+// PARAMETERS
+// the state of the game when it is completed
 localparam GAME_STATE_FINISH = 4'd5;
-// state
+// state parameter values
 localparam STATE_MENU = 1'd0;
 localparam STATE_TYPE = 1'd1; // absorbing, for now
-logic [1:0] current_type;
-logic state;
+
+// STATE
+logic [1:0] current_type; // the current mode of the system (top level or game controller)
+logic state; // the state the system is in (main menu or subchoice)
 always_ff @(posedge clk_100mhz) begin
     if(reset) begin
         state <= STATE_MENU;
@@ -123,54 +128,58 @@ always_ff @(posedge clk_100mhz) begin
     end else begin
         case(state)
             STATE_MENU: begin
-               state <= (rising_btnc) ? STATE_TYPE : STATE_MENU;
+               state <= (rising_btnc) ? STATE_TYPE : STATE_MENU; // when btnc is pressed, transition
                current_type <= current_type_choice; // just keep tracking 
             end
             STATE_TYPE: begin
-                // absorbing
+                // only go back to the top level when the game finishes
                 state <= (game_state == GAME_STATE_FINISH) ? STATE_MENU : STATE_TYPE;
                 current_type <= current_type;
             end
         endcase
     end
 end
-    
 ////////////////////////////////////////////////////
 
-logic enable;
+// Determine whether a custom song has been created.
+logic enable; // whether or not the system is currently in song creation
 assign enable = (state == STATE_TYPE && current_type == TYPE_4);
-
-logic song_created = 1'b0;
+logic song_created = 1'b0; // whether or not a song has been created
 always_ff @(posedge clk_100mhz) song_created <= enable | song_created;
 
-// game controller
+// game controller signals
 logic [2:0] game_vga_mode;
 logic [1:0] game_menu_pos;
 logic [34:0] game_current_notes;
 logic [11:0] game_current_score;
 logic [11:0] game_current_max_score;
-logic is_game_on;
-assign is_game_on = (state == STATE_TYPE && (current_type == TYPE_PLAY || current_type == TYPE_LEARN)) ? 1'b1 : 1'b0;
-
-// debug
 logic [1:0] mode_choice;
 logic [1:0] song_choice;
 logic new_note_shifting_in;
+logic is_game_on; // calculated based on states from the top level FSM
+assign is_game_on = (state == STATE_TYPE && 
+    (current_type == TYPE_PLAY || current_type == TYPE_LEARN)) ? 1'b1 : 1'b0;
 
+// UART controller - retrieves the note played by the user
 logic [6:0] user_note_out_keyboard;
 UART_decoder my_note(.jb(jb), .clk_100mhz(clk_100mhz), .reset(db_btnl), .led(user_note_out_keyboard));
+
+// The user's input note. When switch 15 is on, it uses the switches, and otherwise, it uses the keyboard.
 logic [6:0] user_note_out;
 assign user_note_out = sync_sw[15] ? sync_sw[6:0] : user_note_out_keyboard;
 
+// The song creation module
 logic ram_wea;
 logic [9:0] ram_address;
 logic [7:0] ram_write_data;
 create_song my_song_creator (.clk_100mhz(clk_100mhz), .enable(enable), .note_in(user_note_out), .value(ram_write_data), .write_enable(ram_wea), .address_out(ram_address));
 
+// The song BRAM, which interfaces with both create_song and song_select (indirectly)
 logic [7:0] song_read_note;
 logic [9:0] song_read_current_addr;
 song_rom my_songs(.clka(clk_100mhz), .addra(ram_address), .dina(ram_write_data), .wea(ram_wea), .clkb(clk_100mhz), .addrb(song_read_current_addr), .doutb(song_read_note));
 
+// The game controller.
 game_controller #(
     .VGA_IDLE(VGA_IDLE),
     .VGA_MODE_SELECT(VGA_MODE_SELECT),
@@ -241,17 +250,22 @@ always_ff @(posedge clk_100mhz)begin
     end
 end
 
-
+// VGA mode calculation - combines the game controller VGA mode and top level state.
+// vga states used by pixel_helper
 localparam MAIN_MENU = 3'b000;
 localparam KEYBOARD_INSTRUCTIONS = 3'b001;
 localparam SONG_INSTRUCTIONS = 3'b010;
+localparam BASIC_SONG_MENU = 3'b011;
+localparam GAME_MODE = 3'b110;
+localparam LEARN_MODE = 3'b101;
 
-logic [2:0] full_vga_mode;
+logic [2:0] full_vga_mode; // the final VGA mode.
 assign full_vga_mode = (is_game_on) ? 
   game_vga_mode : ((state == STATE_MENU) ? 
     MAIN_MENU : ((current_type == TYPE_KEYBOARD) ? 
       KEYBOARD_INSTRUCTIONS : SONG_INSTRUCTIONS));
-// VGA OUTPUT
+
+// VGA signals - sync all of the relevant signals above to the 65MHz clock.
 logic [6:0] sync65_user_note;
 logic [2:0] sync65_full_vga_mode;
 logic [1:0] sync65_game_menu_pos;
@@ -288,8 +302,8 @@ synchronize7 sync_user_note(
     .unsync_in(user_note_out),
     .sync_out(sync65_user_note)
 );
-    
 
+// VGA output
 wire [10:0] hcount;    // pixel on current line
 wire [9:0] vcount;     // line number
 wire hsync, vsync;
@@ -298,10 +312,8 @@ reg [11:0] rgb;
 wire blank_ignore;
 xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
   .hsync_out(hsync),.vsync_out(vsync),.blank_out(blank_ignore));
-  
-localparam BASIC_SONG_MENU = 3'b011;
-wire phsync,pvsync,pblank;
 
+wire phsync,pvsync,pblank;
 //pixel_helper module to get pixel values for VGA display
 pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sync65_full_vga_mode), .selection((sync65_full_vga_mode == BASIC_SONG_MENU) ? sync65_game_menu_pos : sync65_current_type_choice),
             .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(sync65_game_current_notes[34:28]), .user_note(sync65_user_note),
@@ -310,7 +322,6 @@ pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sync65_full_vga_mode), .selection
             .phsync_out(phsync),.pvsync_out(pvsync),.pblank_out(pblank),.pixel_out(pixel));
 
 reg b,hs,vs;
-
 always_ff @(posedge clk_65mhz) begin
         hs <= phsync;
         vs <= pvsync;
@@ -327,6 +338,7 @@ always_ff @(posedge clk_65mhz) begin
     assign vga_vs = ~vs;
 //////
 
+// Performs the percentage calculation of the score and holds this in disp_score.
 logic [11:0] disp_score;
 score_calc my_score_calc(
 .score(game_current_score),
@@ -336,34 +348,13 @@ score_calc my_score_calc(
   .disp_score(disp_score)
 );
 
-// DEBUGGING OUTPUT
-// segment display
+// segment display - show the current note on the top two digits, and the final score on the bottom 3 digits.
 assign seg_data[31:24] = {1'b0, game_current_notes[34:28]};
 assign seg_data[23:12] = 0;
 assign seg_data[11:0] = disp_score;
-//assign seg_data[31:28] = game_state;
-//assign seg_data[27:16] = game_current_score;
-//assign seg_data[15:12] = 4'd0;
-//assign seg_data[11:0] = game_current_max_score;
-//assign seg_data[31:28] = game_state;
-//assign seg_data[27:24] = {current_type, song_choice};
-//assign seg_data[27:24] = {2'b0, current_type};
-//assign seg_data[27:24] = {2'b0, mode_choice};
-//assign seg_data[27:24] = {2'b0, song_choice};
-//assign seg_data[23:16] = 8'd0; // {1'b0, game_current_notes[34:28]};
-//assign seg_data[15:12] = 4'd0;
-//assign seg_data[11:8] = {1'b0, game_vga_mode}; // {1'b0, game_current_notes[27:21]};
-//assign seg_data[7:0] = {1'b0, game_current_notes[20:14]};
-//assign seg_data[7:4] = {3'b0, fft_sync_hi};
-//assign seg_data[3:0] = {3'b0, fft_sync_lo};
-//assign seg_data[15:12] = 4'b0;
-//assign seg_data[11:0] = (game_vga_mode == VGA_SONG_SELECT) ? {10'b0, game_menu_pos} : game_current_score;
-// leds
 
-localparam GAME_MODE = 3'b110;
-localparam LEARN_MODE = 3'b101;
+// leds - shows the user input note on the top 7 leds and the desired note index on the bottom 7
 assign led[15:0] = (game_vga_mode == GAME_MODE || game_vga_mode == LEARN_MODE) ? {user_note_out, 2'b0, game_current_notes[34:28]} : 16'b0;
-
 endmodule
 
 // Synchronization Modules
