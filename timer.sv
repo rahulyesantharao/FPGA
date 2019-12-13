@@ -40,10 +40,11 @@ module timer #(parameter COUNTER_HI=26'd52_000_000) (
             
             // countdown logic
             case(state)
-              IDLE:
+              IDLE: begin
                   expired <= 1'b0;
                   countdown <= 4'b0;
                   state <= IDLE;    
+              end
               COUNTING: begin
                   if(countdown == 4'b0) begin // handle the 0 value edge case
                       countdown <= 4'b0;

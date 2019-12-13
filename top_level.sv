@@ -100,7 +100,6 @@ end
 logic rising_lo;
 logic rising_hi;
 // top level menu
-// jacobp - use correct order
 localparam TYPE_KEYBOARD = 2'd0;
 localparam TYPE_4 = 2'd1;
 localparam TYPE_LEARN = 2'd2;
@@ -124,7 +123,6 @@ always_ff @(posedge clk_100mhz) begin
     end else begin
         case(state)
             STATE_MENU: begin
-              // jacobp - if btnc seems broken, change this back to `db_btnc`
                state <= (rising_btnc) ? STATE_TYPE : STATE_MENU;
                current_type <= current_type_choice; // just keep tracking 
             end
@@ -185,9 +183,7 @@ my_game (
     .game_on(is_game_on),
     .btnu(rising_hi | rising_btnu),
     .btnd(rising_lo | rising_btnd),
-    // jacobp - if btnc seems broken, change this back to `db_btnc`
     .btnc(rising_btnc),
-    //.keyboard_note(sync_sw[6:0]),
     .keyboard_note(user_note_out),
     .mic_note(7'b0),
     .game_type_in(current_type),
@@ -305,8 +301,8 @@ xvga xvga1(.vclock_in(clk_65mhz),.hcount_out(hcount),.vcount_out(vcount),
   
 localparam BASIC_SONG_MENU = 3'b011;
 wire phsync,pvsync,pblank;
-// jacobp - try making game_vga_mode, game_menu_pos, current_type_choice,
-// game_current_notes into the sync65 versions
+
+//pixel_helper module to get pixel values for VGA display
 pixel_helper ph(.clk_65mhz(clk_65mhz), .screen(sync65_full_vga_mode), .selection((sync65_full_vga_mode == BASIC_SONG_MENU) ? sync65_game_menu_pos : sync65_current_type_choice),
             .notes(game_current_notes), .new_note(sync65_new_note_shifting_in), .learning_note(sync65_game_current_notes[34:28]), .user_note(sync65_user_note),
             .hcount_in(hcount),.vcount_in(vcount), .reset(reset),
@@ -575,8 +571,8 @@ always_comb begin
     next_calculated_score = calculated_score;
     // we must step down to the next place value
     // stop once the pow index is done with zeros
-    next_pow_index = (pow_index > 4'd0) pow_index - 4'd1 : 4'd0;
-    next_divisor = (pow_index > 4'd0) divisor : 12'd0;
+    next_pow_index = (pow_index > 4'd0) ? pow_index - 4'd1 : 4'd0;
+    next_divisor = (pow_index > 4'd0) ? divisor : 12'd0;
   end
 end
 

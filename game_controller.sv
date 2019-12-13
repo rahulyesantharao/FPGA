@@ -210,7 +210,6 @@ always_comb begin
                         next_old_input_note_counter = 
                           (old_input_note_counter == NOTE_LENGTH - 26'd1) ? 
                             26'd0 : old_input_note_counter + 26'd1;
-                    end
                     end else begin
                         next_advance_note = 1'b0;
                         next_old_input_note_counter = 26'd0;
